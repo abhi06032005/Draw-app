@@ -1,17 +1,17 @@
 import {z} from "zod"
 
-export const signupSchema = z.object({
+export const CreateSignupSchema = z.object({
     username : z.email(),
     name:z.string(),
     password: z.string()
 })
 
 
-export const signinSchema = z.object({
+export const SigninSchema = z.object({
     username : z.email(),
     password: z.string()
 })
 
-export const roomSchema =z.object({
-    room: z.string()
+export const CreateRoomSchema =z.object({
+    name: z.string().min(3).max(20)
 })

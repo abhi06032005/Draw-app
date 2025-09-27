@@ -1,6 +1,8 @@
 import { NextFunction, Request, Response } from "express";
 import jwt from "jsonwebtoken";
 import { JWT_SECRET } from "@repo/common-backend/config";
+
+
 export function middleware(req:Request , res:Response , next:NextFunction){
     const header=  req.headers["authorization"];
 
@@ -11,7 +13,7 @@ export function middleware(req:Request , res:Response , next:NextFunction){
         return
     }
 
-    const token = header.split("Bearer")[1]
+    const token = header.split(" ")[1]
 
     const decoded = jwt.verify(token as string , JWT_SECRET)
 
