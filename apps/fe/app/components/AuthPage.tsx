@@ -1,13 +1,14 @@
-import React, { useState } from "react";
+import React, { useActionState, useState } from "react";
 interface signin{
     isSignin :boolean,
-    onClick : ()=> void
+    onClick : (formData: {name?:string , username : string , password: string})=> void
 }
 
 
 export function AuthPage({isSignin, onClick}:signin) {
-  const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [name , setName] = useState("")
   const [showPassword, setShowPassword] = useState(false);
 
 
@@ -21,10 +22,20 @@ export function AuthPage({isSignin, onClick}:signin) {
           <form className="space-y-4">
             <label className="block">
               <span className="text-xs text-gray-300">Email</span>
-              <input
+               <input
+                type="name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="john"
+                className="mt-1 block w-full rounded-lg px-4 py-3 text-white bg-gray-800 border border-transparent placeholder-gray-400 outline-none transition focus:ring-0 focus:shadow-[0_0_24px_rgba(99,102,241,0.14)]" 
+                required
+              />
+            </label>
+            <label className="">
+                <input
                 type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
                 placeholder="you@example.com"
                 className="mt-1 block w-full rounded-lg px-4 py-3 text-white bg-gray-800 border border-transparent placeholder-gray-400 outline-none transition focus:ring-0 focus:shadow-[0_0_24px_rgba(99,102,241,0.14)]" 
                 required
@@ -55,7 +66,7 @@ export function AuthPage({isSignin, onClick}:signin) {
             <button
               type="submit"
               className="w-full mt-2 rounded-lg py-3 font-medium bg-gradient-to-r from-emerald-400 to-sky-400 text-black shadow-lg transform transition hover:scale-[1.01] hover:shadow-[0_15px_40px_rgba(56,189,248,0.16)] focus:outline-none focus:shadow-[0_0_30px_rgba(56,189,248,0.18)]"
-              onClick={onClick}
+              onClick={()=> onClick({username, password , name})} //onclick will take onclick with the given values
             >
              {isSignin? "Sign in": "Sign up"}
             </button>  
