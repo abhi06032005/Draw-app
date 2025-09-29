@@ -9,13 +9,15 @@
         "dev": "npm run build && npm run start"
     },
     "dependencies": {
-        "@repo/typescript-config": "workspace:*",
-        "@types/express": "^5.0.3",
-        "express": "^5.1.0",
-        "jsonwebtoken": "^9.0.2",
-        "@repo/common-backend": "workspace:*",
         "@repo/common": "workspace:*",
-        "@repo/db": "workspace:*"
+        "@repo/common-backend": "workspace:*",
+        "@repo/db": "workspace:*",
+        "@repo/typescript-config": "workspace:*",
+        "@types/cors": "^2.8.19",
+        "@types/express": "^5.0.3",
+        "cors": "^2.8.5",
+        "express": "^5.1.0",
+        "jsonwebtoken": "^9.0.2"
     },
     "keywords": [],
     "author": "",

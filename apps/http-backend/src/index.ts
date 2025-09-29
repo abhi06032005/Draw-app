@@ -1,4 +1,5 @@
-import express from "express";
+import express from "express"; 
+import cors from "cors"
 import {CreateSignupSchema,SigninSchema, CreateRoomSchema} from "@repo/common/types";
 import  jwt  from "jsonwebtoken";
 import {prismaClient} from "@repo/db/client"
@@ -6,6 +7,7 @@ import { JWT_SECRET } from "@repo/common-backend/config";
 import { middleware } from "./middleware";
 const app= express();
 app.use(express.json()) 
+app.use(cors())
 //  dont forget this solving took 2hrs
 
 
@@ -37,7 +39,7 @@ app.post("/signup", async function(req, res){
         data:{
             email: parsedData.data.username,
             password : parsedData.data.password,
-            // name: parsedData.data.name
+            name: parsedData.data.name
         }}
      )
 
