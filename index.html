@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Fabric.js Example</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/1.4.0/fabric.min.js"></script>
+    <style>
+        #sheet {
+            border: 1px solid black;
+        }
+    </style>
+</head>
+
+<body>
+    <button onclick="changeColor('green')">Green</button>
+    <button onclick="changeColor('red')">Red</button>
+    <button onclick="changeColor('blue')">Blue</button>
+    <canvas id="sheet" width="400" height="400"></canvas>
+
+    <script>
+        let canvas;
+
+        window.onload = function() {
+            canvas = new fabric.Canvas('sheet');
+            canvas.isDrawingMode = false;
+            canvas.freeDrawingBrush.width = 2;
+            canvas.freeDrawingBrush.color = "black"; // default
+        }
+
+        function changeColor(color) {
+            canvas.isDrawingMode = true;
+            canvas.freeDrawingBrush.color = color;
+        }
+    </script>
+</body>
+
+</html>
