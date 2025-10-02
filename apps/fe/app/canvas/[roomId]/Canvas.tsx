@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import axios from "axios";
+
 import { BACKEND_URL } from "@/config";
 
 type Shapes =
@@ -23,7 +24,11 @@ type Shapes =
         y: number;
         endX :number;
         endY: number
-    };
+    }
+  |{
+    type:"pencil";
+    points:{x: number , y: number}[]
+  }
 
 interface CanvasProps {
   roomId: string;
@@ -32,7 +37,7 @@ interface CanvasProps {
 
 export function Canvas({ roomId, socket }: CanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [shapeToDraw, setShape] = useState<"rect" | "circle" | "pencil" | "line" | "eraser">("pencil");
+  const [shapeToDraw, setShape] = useState<"rect" | "circle" | "pencil" | "line" | "eraser" | "pointer" | "clear">("pointer");
   const currentShapeRef = useRef("")
   useEffect(() => {
     let cleanup: (() => void) | undefined;
@@ -41,7 +46,7 @@ export function Canvas({ roomId, socket }: CanvasProps) {
     async function Draw() {
         
         if (!canvasRef.current) return;
-        // 1. fetch existing shapes
+
         const existingShapes: Shapes[] = await getExistingShapes(roomId);
         if (!isMounted) return;
         
@@ -60,27 +65,61 @@ export function Canvas({ roomId, socket }: CanvasProps) {
 
       clearCanvas(existingShapes, canvas, ctx);
 
-      // states for drawing
+ 
      
       let clicked = false;
       let drawing = false;
       let startX = 0;
       let startY = 0;
 
+      let lastX =0
+      let lastY= 0
+      let pencilCodinates :{x : number , y: number}[] =[]
+
+
+      if(currentShapeRef.current ==="clear"){
+        ctx.clearRect(0,0 , canvas.width , canvas.height)
+        existingShapes.length = 0
+        return ;
+      }
+
       function handleMouseDown(e: MouseEvent) {
         clicked = true;
          const currentShape =  currentShapeRef.current
+
+        if (currentShape === "pencil") {
+        drawing = true;
+        [lastX, lastY] = [e.offsetX, e.offsetY];
+
+        ctx.beginPath();
+        ctx.moveTo(lastX, lastY);
+        ctx.strokeStyle = "white";
+        ctx.lineWidth = 2;
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+        pencilCodinates.push({x : lastX , y: lastY})
+
+    }
         if (currentShape === "rect" || currentShape=== "circle" || currentShape ==="line") {
           drawing = true;
           startX = e.offsetX;
           startY = e.offsetY;
           clearCanvas(existingShapes, canvas, ctx);
         }
+
       }
 
       function handleMouseMove(e: MouseEvent) {
+        const currentShape =  currentShapeRef.current
+
+        if (clicked && drawing && currentShape === "pencil") {
+        ctx.lineTo(e.offsetX, e.offsetY);
+        ctx.stroke();
+        [lastX, lastY] = [e.offsetX, e.offsetY];
+        pencilCodinates.push({x: lastX ,y :lastY})
+        return; 
+    }
         clearCanvas(existingShapes, canvas, ctx);
-         const currentShape =  currentShapeRef.current
 
          if(clicked && drawing && currentShape === "line"){
 
@@ -115,12 +154,33 @@ export function Canvas({ roomId, socket }: CanvasProps) {
           ctx.stroke();
           ctx.closePath();
         }
+
+       
       }
 
       function handleMouseUp(e: MouseEvent) {
         clicked = false;
         drawing = false;
         const currentShape =  currentShapeRef.current
+
+        if(currentShape ==="pencil"){
+          lastX= e.offsetX
+          lastY = e.offsetY
+
+          const shape:Shapes ={
+            type:"pencil",
+            points:pencilCodinates
+          }
+
+          existingShapes.push(shape)
+          socket.send(JSON.stringify({
+            type:"chat",
+            message:JSON.stringify(shape),
+            roomId : Number(roomId)
+
+          }))
+          pencilCodinates =[]
+        }
 
         if(currentShape ==="line"){
             const endX = e.offsetX;
@@ -193,7 +253,7 @@ export function Canvas({ roomId, socket }: CanvasProps) {
           
           clearCanvas(existingShapes, canvas, ctx);
         }
-        setShape("pencil");
+        setShape("pointer");
       }
 
       canvas.addEventListener("mousedown", handleMouseDown);
@@ -226,7 +286,10 @@ export function Canvas({ roomId, socket }: CanvasProps) {
         <button onClick={() => setShape("circle")}>Circle</button>
         <button onClick={() => setShape("rect")}>Rectangle</button>
         <button onClick={()=> setShape("line")}>Line</button>
+        <button onClick={()=> setShape("pencil")}>Pencil</button>
         <button onClick={()=>setShape("eraser")}>Eraser</button>
+        <button onClick={()=>setShape("clear")}>clear</button>
+      
       </div>
       <canvas
         width={window.innerWidth}
@@ -243,6 +306,22 @@ export function Canvas({ roomId, socket }: CanvasProps) {
 function clearCanvas(existingShapes: Shapes[], canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D) {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   existingShapes.forEach((shape) => {
+
+
+    if (shape.type === "pencil") {
+    ctx.beginPath();
+    ctx.strokeStyle = "white";
+    ctx.lineWidth = 2;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+
+    shape.points.forEach((point, index) => {
+        if (index === 0) ctx.moveTo(point.x, point.y);
+        else ctx.lineTo(point.x, point.y);
+    }); 
+    ctx.stroke();
+}
+
     if (shape.type === "rect") {
       ctx.strokeStyle = "white";
       ctx.strokeRect(shape.x, shape.y, shape.width, shape.height);
@@ -271,15 +350,14 @@ async function getExistingShapes(roomId: string) {
     const res = await axios.get(`${BACKEND_URL}/chats/${roomId}`);
     const messages = res.data?.messages || [];
 
-    const shapes = messages
-      .map((x: { message: string }) => {
+    const shapes = messages.map((x: { message: string }) => {
         try {
           return JSON.parse(x.message);
         } catch {
-          return null; // ignore invalid JSON
+          return null; 
         }
       })
-      .filter(Boolean); // remove nulls
+      .filter(Boolean); 
 
     return shapes;
   } catch (err) {
