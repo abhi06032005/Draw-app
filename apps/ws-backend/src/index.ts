@@ -65,7 +65,7 @@ wss.on("connection", function connection(ws, request) {
         }
 
         // Chat / shape message
-        if (parsedData.type === "chat") {
+        if (parsedData.type === "chat"  || parsedData.type === "message") {
             const message = parsedData.message;
 
             // Save to DB
@@ -82,7 +82,7 @@ wss.on("connection", function connection(ws, request) {
                 if (user.rooms.includes(roomId)) {
                     user.ws.send(
                         JSON.stringify({
-                            type: "chat",
+                            type: parsedData.type,
                             roomId,
                             message,
                         })

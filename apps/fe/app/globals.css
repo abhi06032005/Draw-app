@@ -1,1 +1,10 @@
 @import "tailwindcss";
+
+/* Apply this class to your scrollable container */
+
+#chat-window {
+    scrollbar-width: 0px;
+    /* For Firefox */
+    scrollbar-color: #4B5563 transparent;
+    /* For Firefox */
+}

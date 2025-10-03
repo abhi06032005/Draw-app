@@ -19,8 +19,6 @@ export default async function({
     const roomId = await getRoomId(slug);
     
     return <ChatRoom id={roomId}></ChatRoom>
-    return <div>
-
-    </div>
+    
 
 }

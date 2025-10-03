@@ -16,7 +16,7 @@ export default function joinroom() {
         }} type="text" placeholder="Room id"></input>
 
         <button className="p-10" onClick={() => {
-          router.push(`/room/${roomId}`);
+          router.push(`joinroom/room/${roomId}`);
         }}>Join room</button>
       </div>
     </div>

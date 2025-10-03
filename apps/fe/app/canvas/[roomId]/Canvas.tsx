@@ -80,7 +80,7 @@ export function Canvas({ roomId, socket }: CanvasProps) {
       if(currentShapeRef.current ==="clear"){
         ctx.clearRect(0,0 , canvas.width , canvas.height)
         existingShapes.length = 0
-        return ;
+        return ;  
       }
 
       function handleMouseDown(e: MouseEvent) {

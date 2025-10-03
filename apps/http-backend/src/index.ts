@@ -8,7 +8,7 @@ import { middleware } from "./middleware";
 const app= express();
 app.use(express.json()) 
 app.use(cors())
-//  dont forget this solving took 2hrs
+//  dont forget this solving took 2hr
 
 
 app.post("/signup", async function(req, res){
@@ -43,7 +43,7 @@ app.post("/signup", async function(req, res){
         }}
      )
 
-     res.json({
+     res.status(201).json({
         message: " user created successfully"
      })
     }
@@ -88,7 +88,7 @@ app.post("/signin", async function(req, res){
             userId
         },JWT_SECRET)
 
-        res.json({
+        res.status(201).json({
             token:token
         })
 
