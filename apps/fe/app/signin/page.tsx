@@ -4,12 +4,14 @@ import { BACKEND_URL, WS_URL } from "@/config";
 import React, { use, useActionState, useState } from "react";
 import axios from "axios";
 import { useRouter } from "next/navigation";
+import Loader from "@/components/Loader";
 
 
 
 export default function Signin() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [clicked ,  setClicked] =useState(false)
   const [showPassword, setShowPassword] = useState(false);
   const router =useRouter()
 
@@ -61,6 +63,7 @@ export default function Signin() {
               transition hover:scale-[1.01] hover:shadow-[0_15px_40px_rgba(56,189,248,0.16)] focus:outline-none focus:shadow-[0_0_30px_rgba(56,189,248,0.18)]"
             onClick={async ()=>{
                 try{
+                  setClicked(c => !c)
                     const response = await axios.post(`${BACKEND_URL}/signin`,{
                         username,
                         password
@@ -79,9 +82,12 @@ export default function Signin() {
             >
                 Sign Up
             </button>  
-         
+
+        
         </div>
       </div>
+          {clicked && <Loader />}
+         
     </div>
   );
 }

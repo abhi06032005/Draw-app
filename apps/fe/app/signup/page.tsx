@@ -96,10 +96,12 @@ export default function Signup() {
                 Sign Up
             </button>  
 
-            {clicked &&  <Loader />}
+        
           
         </div>
       </div>
+          {clicked && <Loader />}
+               
     </div>
   );
 }
