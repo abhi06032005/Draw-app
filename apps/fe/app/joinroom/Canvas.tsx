@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import axios from "axios";
 
 import { BACKEND_URL } from "@/config";
+import ChatRoomClient from "./ChatRoomClient";
 
 type Shapes =
   | {
@@ -37,6 +38,7 @@ interface CanvasProps {
 
 export function Canvas({ roomId, socket }: CanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [chats  , setChats] =  useState<{message :string}[]>([])
   const [shapeToDraw, setShape] = useState<"rect" | "circle" | "pencil" | "line" | "eraser" | "pointer" | "clear">("pointer");
   const currentShapeRef = useRef("")
   useEffect(() => {
@@ -56,7 +58,7 @@ export function Canvas({ roomId, socket }: CanvasProps) {
 
       socket.onmessage = (event) => {
         const message = JSON.parse(event.data);
-        if (message.type === "chat") {
+        if (message.type === "shape") {
           const parsedShape = JSON.parse(message.message);
           existingShapes.push(parsedShape);
           clearCanvas(existingShapes, canvas, ctx);
@@ -174,7 +176,7 @@ export function Canvas({ roomId, socket }: CanvasProps) {
 
           existingShapes.push(shape)
           socket.send(JSON.stringify({
-            type:"chat",
+            type:"shape",
             message:JSON.stringify(shape),
             roomId : Number(roomId)
 
@@ -196,7 +198,7 @@ export function Canvas({ roomId, socket }: CanvasProps) {
             existingShapes.push(shape)
 
             socket.send(JSON.stringify({
-                type :"chat",
+                type :"shape",
                 message: JSON.stringify(shape),
                 roomId: Number(roomId)
             }));    
@@ -218,7 +220,7 @@ export function Canvas({ roomId, socket }: CanvasProps) {
 
           socket.send(
             JSON.stringify({
-              type: "chat",
+              type: "shape",
               message: JSON.stringify(shape),
               roomId: Number(roomId),
             })
@@ -245,7 +247,7 @@ export function Canvas({ roomId, socket }: CanvasProps) {
 
           socket.send(
             JSON.stringify({
-              type: "chat",
+              type: "shape",
               roomId: Number(roomId),
               message: JSON.stringify(shape),
             })
@@ -280,6 +282,19 @@ export function Canvas({ roomId, socket }: CanvasProps) {
     currentShapeRef.current = shapeToDraw
   },[shapeToDraw])
 
+  useEffect(() => {
+    if(!roomId) return
+
+    async function fetchChats() {
+      const existingChats = await getExistingChats(roomId)
+      setChats(existingChats)
+      
+    }
+
+    fetchChats();
+  
+  }, [roomId]);
+
   return (
     <div>
         <div className="top-10 left-10 flex gap-5">
@@ -291,6 +306,9 @@ export function Canvas({ roomId, socket }: CanvasProps) {
         <button onClick={()=>setShape("clear")}>clear</button>
       
       </div>
+
+      {/* as the chats are empty arr at first it will render 2 times one with no msg and other after getting messages so checking if len > 0  then only renfering */}
+       {chats.length > 0 && <ChatRoomClient id={roomId} messages={chats}/>}
       <canvas
         width={window.innerWidth}
         height={window.innerHeight}
@@ -347,7 +365,7 @@ function clearCanvas(existingShapes: Shapes[], canvas: HTMLCanvasElement, ctx: C
 
 async function getExistingShapes(roomId: string) {
   try {
-    const res = await axios.get(`${BACKEND_URL}/chats/${roomId}`);
+    const res = await axios.get(`${BACKEND_URL}/shapes/${roomId}`);
     const messages = res.data?.messages || [];
 
     const shapes = messages.map((x: { message: string }) => {
@@ -365,3 +383,28 @@ async function getExistingShapes(roomId: string) {
     return [];
   }
 }
+
+async function getExistingChats(roomId: string) {
+  try {
+    const res = await axios.get(`${BACKEND_URL}/chats/${roomId}`);
+    const messages = res.data?.messages || [];
+
+    const chats = messages.map((x: { message: string }) => {
+
+      if (typeof x.message === "string") return {message :x.message}
+        try {
+          return JSON.parse(x.message);
+        } catch {
+          return null; 
+        }
+      })
+      .filter(Boolean); 
+
+    return chats;
+  } catch (err) {
+    console.error("Error fetching existing chats:", err);
+    return [];
+  }
+}
+
+

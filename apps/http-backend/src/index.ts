@@ -143,7 +143,7 @@ app.get("/chats/:roomId", async function (req, res){
         orderBy:{
             id: "desc"
         },
-        take: 50
+        take:30
 
     })
 
@@ -189,6 +189,36 @@ app.get("/room/:slug", async function (req, res){
 
     
 })
+
+
+app.get("/shapes/:roomId", async function (req, res){
+
+    try {
+          const roomId = Number(req.params.roomId)
+    const messages = await prismaClient.shapes.findMany({
+        where:{
+            roomId : roomId
+        },
+        orderBy:{
+            id: "desc"
+        },
+        take:40
+
+    })
+
+    res.json({
+        messages
+    })
+    }
+    catch(e)
+    {
+       console.error(e);
+    res.status(500).json({ error: "Failed to fetch messages" });
+    }
+
+})
+
+         
 
 
 

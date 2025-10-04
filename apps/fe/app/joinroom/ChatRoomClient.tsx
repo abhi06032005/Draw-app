@@ -11,7 +11,10 @@ export default function  ChatRoomClient({
   messages: { message: string }[];
   id: string;
 }) {
-  const [chats, setChats] = useState(messages);
+  const [chats, setChats] = useState(
+    messages.map((m) => (typeof m.message === "string" ? m : { message: "" }))
+  );
+
   const [currentMessage, setCurrentMessage] = useState("");
   const { socket, loading } = useSocket();
   const chatEndRef = useRef<HTMLDivElement | null>(null);
@@ -23,29 +26,32 @@ export default function  ChatRoomClient({
   const offset = useRef({ x: 0, y: 0 });
   const isDragging = useRef(false);
 
+
+
   // Auto-scroll
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chats]);
 
   // Join room & listen
-  useEffect(() => {
-    if (socket && !loading) {
-      socket.send(
-        JSON.stringify({
-          type: "join_room",
-          roomId: id,
-        })
-      );
+useEffect(() => {
+  if (!socket || loading) return;
 
-      socket.onmessage = (event) => {
-        const parsedData = JSON.parse(event.data);
-        if (parsedData.type === "message"  ) {
-          setChats((c) => [...c, { message: parsedData.message }]);
-        }
-      };
+  socket.send(JSON.stringify({ type: "join_room", roomId: id }));
+
+  const handleMessage = (event: MessageEvent) => {
+    const parsedData = JSON.parse(event.data);
+    if (parsedData.type === "chat") {
+      setChats((c) => [...c, { message: parsedData.message }]);
     }
-  }, [socket, loading, id]);
+  };
+
+  socket.addEventListener("message", handleMessage);
+  return () => {
+    socket.removeEventListener("message", handleMessage);
+  };
+}, [socket, loading, id]);
+
 
   // Drag handlers
   const handleMouseDown = (e: React.MouseEvent) => {
@@ -83,7 +89,7 @@ export default function  ChatRoomClient({
 
     socket?.send(
       JSON.stringify({
-        type: "message",
+        type: "chat",
         roomId: id,
         message: currentMessage,
       })
@@ -121,14 +127,16 @@ export default function  ChatRoomClient({
           <div className="flex-1 flex flex-col overflow-hidden">
             {/* Messages */}
             <div className="flex-1 p-4 overflow-y-auto space-y-2">
-              {chats.map((m, idx) => (
+              { chats.length === 0 ? (
+                <p>No messages yet</p>
+              ):(chats.map((m ,idx) => (
                 <div
                   key={idx}
                   className="bg-gray-800 text-gray-100 p-2 rounded-lg break-words shadow-sm"
                 >
                   {m.message}
                 </div>
-              ))}
+              )))}
               <div ref={chatEndRef} />
             </div>
 

@@ -5,6 +5,7 @@ import { BACKEND_URL, WS_URL } from "@/config";
 import React, {  useState } from "react";
 import axios from "axios";
 import { useRouter } from "next/navigation";
+import Loader from "@/components/Loader";
 
 
 
@@ -12,6 +13,7 @@ export default function Signup() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [name , setName] = useState("")
+  const [clicked , setClicked] = useState(false)
   const [showPassword, setShowPassword] = useState(false);
   const router =useRouter()
 
@@ -72,6 +74,7 @@ export default function Signup() {
               className="cursor-pointer w-full mt-2 rounded-lg py-3 font-medium bg-gradient-to-r from-emerald-400 to-sky-400 text-black shadow-lg transform 
               transition hover:scale-[1.01] hover:shadow-[0_15px_40px_rgba(56,189,248,0.16)] focus:outline-none focus:shadow-[0_0_30px_rgba(56,189,248,0.18)]"
             onClick={async ()=>{
+              setClicked(c => !c)
                 try{
                     const response = await axios.post(`${BACKEND_URL}/signup`,{
                         username,
@@ -85,12 +88,15 @@ export default function Signup() {
                 }
                 catch(e){
                     console.log(e)
+                    router.push("/signup")
                 }
               
             }}
             >
                 Sign Up
             </button>  
+
+            {clicked &&  <Loader />}
           
         </div>
       </div>

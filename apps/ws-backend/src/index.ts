@@ -1,3 +1,4 @@
+
 import { WebSocket, WebSocketServer } from "ws";
 import jwt, { JwtPayload } from "jsonwebtoken";
 import { JWT_SECRET } from "@repo/common-backend/config";
@@ -64,27 +65,53 @@ wss.on("connection", function connection(ws, request) {
             }
         }
 
-        // Chat / shape message
-        if (parsedData.type === "chat"  || parsedData.type === "message") {
+        // Chat 
+        if (parsedData.type === "chat" ) {
             const message = parsedData.message;
 
             // Save to DB
             await prismaClient.chat.create({
                 data: {
                     roomId: Number(roomId),
+                    type: "chat",
                     message,
                     userId,
                 },
             });
 
-            // Broadcast to all users in the room
+            
             users.forEach((user) => {
                 if (user.rooms.includes(roomId)) {
                     user.ws.send(
                         JSON.stringify({
-                            type: parsedData.type,
+                            type: "chat",
                             roomId,
                             message,
+                        })
+                    );
+                }
+            });
+        }
+
+        if(parsedData.type ==="shape"){
+            const shape= parsedData.message
+
+            await prismaClient.shapes.create({
+                data:{
+                    roomId :Number(roomId),
+                    type: "shape",
+                    message :shape,
+                    userId
+                }
+            })
+
+             users.forEach((user) => {
+                if (user.rooms.includes(roomId)) {
+                    user.ws.send(
+                        JSON.stringify({
+                            type:"shape",
+                            roomId,
+                            message:shape,
                         })
                     );
                 }

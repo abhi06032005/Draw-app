@@ -17,6 +17,7 @@ model User{
   photo     String?
   room      Room[]
   chats     Chat[]
+  shapes    Shapes[]
 }
 
 model Room{
@@ -26,11 +27,24 @@ model Room{
   adminId   String
   admin     User          @relation(fields: [adminId] , references: [id])
   chats     Chat[]
+  shapes    Shapes[]
 }
 
 model Chat{
   id        Int       @id @default(autoincrement())
   roomId    Int
+  type      String
+  message   String
+  userId    String
+  room      Room      @relation(fields: [roomId] , references: [id])
+  user      User      @relation(fields: [userId], references: [id])
+  
+}
+
+model Shapes{
+  id        Int       @id @default(autoincrement())
+  roomId    Int
+  type      String
   message   String
   userId    String
   room      Room      @relation(fields: [roomId] , references: [id])

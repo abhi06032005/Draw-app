@@ -2,8 +2,10 @@ import { NextFunction, Request, Response } from "express";
 import jwt from "jsonwebtoken";
 import { JWT_SECRET } from "@repo/common-backend/config";
 
-
-export function middleware(req:Request , res:Response , next:NextFunction){
+interface AuthenticatedRequest extends Request{
+    userId? : string
+} 
+export function middleware(req:AuthenticatedRequest , res:Response , next:NextFunction){
     const header=  req.headers["authorization"];
 
     if(!header){
@@ -15,10 +17,9 @@ export function middleware(req:Request , res:Response , next:NextFunction){
 
     const token = header.split(" ")[1]
 
-    const decoded = jwt.verify(token as string , JWT_SECRET)
+    const decoded = jwt.verify(token as string , JWT_SECRET) as {userId : string}
 
     if(decoded){
-        //@ts-ignore
         req.userId = decoded.userId
         next();
     }

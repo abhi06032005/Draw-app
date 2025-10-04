@@ -2,13 +2,20 @@
 import { WS_URL } from "@/config";
 import { Canvas } from "./Canvas";
 import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 
 export function CanvasRoom({roomId}: {roomId:string} ){
 
     const [socket , setSocket] = useState<WebSocket | null>(null)
 
     useEffect(()=>{
-        const ws = new WebSocket(`${WS_URL}?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI5ZTNhNTVlZC02NDA4LTQ1OWMtOTUyNC1hMTZiYmQ4YzA0YzciLCJpYXQiOjE3NTkwNTE2MzJ9.39igDwxbyB3tM8gRdvYoU_GacwWW9i3_gTA6uOYVDpw`)
+        let token = localStorage.getItem("Authorization");
+        if(!token){
+            const router = useRouter();
+            router.push("/login")
+            return;
+        }
+        const ws = new WebSocket(`${WS_URL}?token=${token}`)
 
         ws.onopen = ()=>{
             setSocket(ws)
@@ -29,5 +36,6 @@ export function CanvasRoom({roomId}: {roomId:string} ){
 
     return <div>
         <Canvas roomId ={roomId} socket={socket}/>
+   
     </div>
 }
