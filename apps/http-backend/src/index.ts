@@ -119,10 +119,8 @@ app.post("/room", middleware ,async function(req, res){
                 slug: parsedData.data.name
             }
         })
-        res.json({
+        res.status(201).json({
             roomId : room.slug,
-            time: room.createAt,
-            Admin : room.adminId
         })
 
     }

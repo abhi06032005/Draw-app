@@ -1,28 +1,30 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Hyperspeed from "@/components/Hyperspeed";
+
 
 import { useRouter } from "next/navigation";
+
+import Particles from "@/components/Particles";
 
 export default function joinroom() {
   const [roomId, setRoomId] = useState("");
   const [disabled  ,setDisabled] = useState(false)
   const router = useRouter();
 
-  // useEffect(()=>{
-  //   const token = localStorage.getItem("Authorization")s
+  useEffect(()=>{
+    const token = localStorage.getItem("Authorization")
 
-  //   if(!token){
-  //     alert("User Not Signed In")
-  //     router.push("/signin")
-  //     return;
-  //   }
-  // },[])
+    if(!token){
+      alert("User Not Signed In")
+      router.push("/signin")
+      return;
+    }
+  },[])
 
   return (<>
   <div className="w-screen h-screen overflow-x-hidden overflow-y-hidden bg-gray-900 items-center justify-center flex ">
-    <Hyperspeed />
+      <Particles />
 
     <div className="shadow-lg shadow-white/20 absolute flex items-center justify-center flex-col gap-10 backdrop-blur-2xl bg-white/5 rounded-4xl p-10">
 

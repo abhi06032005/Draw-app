@@ -5,29 +5,26 @@ import { JWT_SECRET } from "@repo/common-backend/config";
 interface AuthenticatedRequest extends Request{
     userId? : string
 } 
-export function middleware(req:AuthenticatedRequest , res:Response , next:NextFunction){
-    const header=  req.headers["authorization"];
+export function middleware(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+  const authHeader = req.headers["authorization"];
 
-    if(!header){
-        res.status(411).json({
-            message: "not signed in"
-        })
-        return
-    }
+  if (!authHeader) {
+    return res.status(401).json({ message: "Not signed in" }); // 401 instead of 411
+  }
 
-    const token = header.split(" ")[1]
+  // Extract token safely
+  const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7).trim() : authHeader.trim();
 
-    const decoded = jwt.verify(token as string , JWT_SECRET) as {userId : string}
+  if (!token) {
+    return res.status(401).json({ message: "Token missing" });
+  }
 
-    if(decoded){
-        req.userId = decoded.userId
-        next();
-    }
-    else{
-        res.status(403).json({
-           message: "unauthorized access" 
-        })
-    }
-
-
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET) as { userId: string };
+    req.userId = decoded.userId;
+    next();
+  } catch (Error : any) {
+    console.error("JWT verify error:", Error.message );
+    return res.status(403).json({ message: "Unauthorized access" });
+  }
 }
