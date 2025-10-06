@@ -35,9 +35,9 @@ model Chat{
   roomId    Int
   type      String
   message   String
-  userId    String
+  userId    String?
   room      Room      @relation(fields: [roomId] , references: [id])
-  user      User      @relation(fields: [userId], references: [id])
+  user      User?      @relation(fields: [userId], references: [id])
   
 }
 

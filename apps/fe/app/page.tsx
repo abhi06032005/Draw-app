@@ -22,13 +22,23 @@ export default function LandingPage() {
         </p>
 
         {/* Sign Up Button */}
-        <button className="cursor-pointer bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-8 py-4 rounded-full transition-all shadow-lg"
+       
+           <button className="cursor-pointer bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-8 py-4 rounded-full transition-all shadow-lg"
         onClick={()=>{
             setClicked( c => !c)
             router.push("/signup")
         }}>
           Sign Up
         </button>
+        <button className=" ml-4 cursor-pointer bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-8 py-4 rounded-full transition-all shadow-lg"
+        onClick={()=>{
+            setClicked( c => !c)
+            router.push("/signin")
+        }}>
+          Sign In
+        </button>
+        
+       
       </div>
 
       {/* Features */}

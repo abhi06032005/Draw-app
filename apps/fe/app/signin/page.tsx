@@ -71,7 +71,7 @@ export default function Signin() {
                     });
                     if(response.status === 201){
                         localStorage.setItem("Authorization", response.data.token)
-                        router.push("/joinroom")
+                        router.push("/create")
                     }
                 }
                 catch(e){

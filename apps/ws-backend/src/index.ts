@@ -74,8 +74,8 @@ wss.on("connection", function connection(ws, request) {
                 data: {
                     roomId: Number(roomId),
                     type: "chat",
-                    message,
-                    userId,
+                    message
+                    
                 },
             });
 

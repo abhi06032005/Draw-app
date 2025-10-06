@@ -27,7 +27,7 @@ export default function CreateRoom(){
 
 
      return (<>
-    <div className="w-screen h-screen overflow-x-hidden overflow-y-hidden bg-gray-900 items-center justify-center flex ">
+    <div className="w-screen h-screen overflow-x-hidden overflow-y-hidden bg-black items-center justify-center flex ">
         <Particles />
 
         <div className="shadow-lg shadow-white/20 absolute flex items-center justify-center flex-col gap-10 backdrop-blur-2xl bg-white/5 rounded-4xl p-10">

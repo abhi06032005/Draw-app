@@ -88,7 +88,7 @@ export default function Signup() {
                 }
                 catch(e){
                     console.log(e)
-                    router.push("/signup")
+                    router.refresh()
                 }
               
             }}
