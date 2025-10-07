@@ -65,8 +65,8 @@ export default function Signin() {
                 try{
                   setClicked(c => !c)
                     const response = await axios.post(`${BACKEND_URL}/signin`,{
-                        username,
-                        password
+                        username: username.trim(),
+                        password: password.trim()
                         
                     });
                     if(response.status === 201){
@@ -76,6 +76,9 @@ export default function Signin() {
                 }
                 catch(e){
                     console.log(e)
+                    alert("Signin Failed !! Try Again")
+                    setClicked(c=>!c)
+                    router.refresh()
                 }
               
             }}
