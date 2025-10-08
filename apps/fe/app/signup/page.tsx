@@ -87,6 +87,8 @@ export default function Signup() {
                     }
                 }
                 catch(e){
+                  setClicked(c => !c)
+                    alert("Signup Failed !! Try Again")
                     console.log(e)
                     router.refresh()
                 }

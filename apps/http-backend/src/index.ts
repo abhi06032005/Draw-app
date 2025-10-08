@@ -7,7 +7,9 @@ import { JWT_SECRET } from "@repo/common-backend/config";
 import { middleware } from "./middleware";
 const app= express();
 app.use(express.json()) 
-app.use(cors())
+app.use(cors({
+    origin: "*"
+}));
 //  dont forget this solving took 2hr
 
 
@@ -221,4 +223,6 @@ app.get("/shapes/:roomId", async function (req, res){
 
 
 
-app.listen(4000)
+app.listen(4000 ,"0.0.0.0",()=>{
+    console.log("server started on port 4000")
+})
