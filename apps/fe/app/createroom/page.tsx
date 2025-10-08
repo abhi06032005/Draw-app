@@ -4,15 +4,17 @@ import { useRouter } from "next/navigation";
 import Particles from "@/components/Particles";
 import axios from "axios";
 import { BACKEND_URL } from "@/config";
+import { ThreeDot } from "react-loading-indicators";
 
 
 
 export default function CreateRoom(){
 
-    const [disabled , setDisabled] = useState(false);
+    const [loading , setLoading] = useState(false);
     const [roomId  , setRoomId] = useState(" ")
     const router = useRouter();
     const token = localStorage.getItem("Authorization")
+    const loader =<ThreeDot color="#ffffff" size="medium" text="" textColor="" />
 
 
     useEffect(()=>{
@@ -41,16 +43,18 @@ export default function CreateRoom(){
             setRoomId(e.target.value);
             }} type="text" placeholder="ROOM NAME"></input>
 
-            <button className={`${disabled ? "bg-amber-100 text-gray-800 py-3 px-5" :" py-3 px-5 font-bold  bg-amber-300 hover:bg-amber-700 "}
-            hover:text-white border border-green-400 rounded-2xl hover:shadow-green-400 focus:shadow-green-400 focus:shadow-md focus:outline-none cursor-pointer
-            text-black hover:scale-105 transition-all duration-500 hover:shadow-lg`}
+           <button className={`py-3 px-5 font-bold rounded-2xl 
+              ${loading
+                ? "bg-transparent border-none shadow-none text-gray-400 cursor-not-allowed" 
+                : "bg-amber-300 hover:bg-amber-200 border border-green-400 hover:shadow-green-400 focus:shadow-green-400 focus:shadow-md focus:outline-none cursor-pointer text-black hover:shadow-lg"
+              }`}
 
-
+            
             onClick={async() => {
             const trimroomId = roomId.trim()
             console.log(token)
-            if(disabled) return;
-            setDisabled(true)
+            if(loading) return;
+            setLoading(c=>!c)
             try{
                 const response = await axios.post(`${BACKEND_URL}/room`,{
                 name:trimroomId
@@ -66,13 +70,15 @@ export default function CreateRoom(){
             }
             catch(e){
                 alert("Server while creating a room !! create Again")
-                setDisabled(false)
+                setLoading(false)
                 router.refresh()
             }
            
             
             }}
-            >{disabled? "CREATING....": "CREATE ROOM"}</button>
+            > {loading ?loader: "CREATE ROOM"} </button>
+
+            
         
         </div>
     </div>

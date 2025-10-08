@@ -17,9 +17,6 @@ async function getRoomId(slug: string) {
         }
     }
     catch(e){
-        
-        alert('Check the RoomId !! or create a new RoomId')
-
         return null
     }
 
@@ -38,7 +35,7 @@ export default async function({
     if(roomId == null){
         redirect('/create')
     }
-    
+
     else{
         return <div>
             <CanvasRoom roomId={roomId}></CanvasRoom>

@@ -12,7 +12,7 @@ export default function joinroom() {
   const [roomId, setRoomId] = useState("");
   const loader =<ThreeDot color="#ffffff" size="medium" text="" textColor="" />
 
-  const [disabled  ,setDisabled] = useState(false)
+  const [loading  ,setLoading] = useState(false)
   const router = useRouter();
 
   useEffect(()=>{
@@ -31,23 +31,33 @@ export default function joinroom() {
 
     <div className="shadow-lg shadow-white/20 absolute flex items-center justify-center flex-col gap-10 backdrop-blur-2xl bg-white/5 rounded-4xl p-10">
 
-        <h1 className=" text-white text-5xl items-center justify-center font-semibold">To Join Enter Room <br /><h1 className="mx-auto text-white text-5xl items-center justify-center font-semibold">ID</h1></h1>
+          <div className="flex flex-col items-center justify-center  bg-black">
+              <h1 className="text-white text-5xl font-semibold tracking-wider text-center">
+                  Enter Room ID to Join
+              </h1>
+          </div>     
+
         <input className="p-5 backdrop-blur-md bg-white/10 border border-green-400 rounded-2xl hover:shadow-green-400 focus:shadow-green-400 focus:shadow-md focus:outline-none text-white" value={roomId} onChange={(e) => {
           setRoomId(e.target.value);
         }} type="text" placeholder="Room id"></input>
 
-        <button className={`${disabled ? "bg-black py-3 px-5" :" py-3 px-5 font-bold  bg-amber-300 hover:bg-amber-700 "}
-         hover:text-white border border-green-400 rounded-2xl hover:shadow-green-400 focus:shadow-green-400 focus:shadow-md focus:outline-none cursor-pointer
-         text-black hover:scale-105 transition-all duration-500 hover:shadow-lg`}
+          <button className={`py-3 px-5 font-bold rounded-2xl 
+              ${loading 
+                ? "bg-transparent border-none shadow-none text-gray-400 cursor-not-allowed" 
+                : "bg-amber-300 hover:bg-amber-200 border border-green-400 hover:shadow-green-400 focus:shadow-green-400 focus:shadow-md focus:outline-none cursor-pointer text-black hover:shadow-lg"
+              }`}
+
 
 
         onClick={() => {
-          if(disabled) return;
-          setDisabled(true)
+          if(loading) return;
+          setLoading(c =>!c)
 
           router.push(`joinroom/room/${roomId}`);
         }}
-        >{disabled? `${loader}`: "JOIN ROOM"}</button>
+        >{loading ? loader : "JOIN ROOM"}</button>
+
+        
       
     </div>
   </div>
