@@ -76,7 +76,7 @@ export default function Signin() {
                 }
                 catch(e){
                     console.log(e)
-                    alert("Signin Failed !! Try Again")
+                    alert("Wrong username or password!!")
                     setClicked(c=>!c)
                     router.refresh()
                 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { ThreeDot } from "react-loading-indicators";
 
 
 import { useRouter } from "next/navigation";
@@ -9,6 +10,8 @@ import Particles from "@/components/Particles";
 
 export default function joinroom() {
   const [roomId, setRoomId] = useState("");
+  const loader =<ThreeDot color="#ffffff" size="medium" text="" textColor="" />
+
   const [disabled  ,setDisabled] = useState(false)
   const router = useRouter();
 
@@ -33,7 +36,7 @@ export default function joinroom() {
           setRoomId(e.target.value);
         }} type="text" placeholder="Room id"></input>
 
-        <button className={`${disabled ? "bg-amber-100 text-gray-800 py-3 px-5" :" py-3 px-5 font-bold  bg-amber-300 hover:bg-amber-700 "}
+        <button className={`${disabled ? "bg-black py-3 px-5" :" py-3 px-5 font-bold  bg-amber-300 hover:bg-amber-700 "}
          hover:text-white border border-green-400 rounded-2xl hover:shadow-green-400 focus:shadow-green-400 focus:shadow-md focus:outline-none cursor-pointer
          text-black hover:scale-105 transition-all duration-500 hover:shadow-lg`}
 
@@ -41,9 +44,10 @@ export default function joinroom() {
         onClick={() => {
           if(disabled) return;
           setDisabled(true)
+
           router.push(`joinroom/room/${roomId}`);
         }}
-        >{disabled? "JOINING....": "JOIN ROOM"}</button>
+        >{disabled? `${loader}`: "JOIN ROOM"}</button>
       
     </div>
   </div>

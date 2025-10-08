@@ -171,7 +171,7 @@ app.get("/room/:slug", async function (req, res){
         })
 
         if(!room){
-            res.json({
+            res.status(403).json({
                 message:" NO room exists!!"
             })
             return

@@ -1,12 +1,28 @@
+
 import axios from "axios";
 import { BACKEND_URL } from "../../../../config";
+import { redirect} from "next/navigation";
 
 import { CanvasRoom } from "../../CanvasRoom";
 
+
+
 async function getRoomId(slug: string) {
-    const response = await axios.get(`${BACKEND_URL}/room/${slug}`)
-    console.log(response.data);
-    return response.data.roomId;
+
+    
+   try {
+        const response = await axios.get(`${BACKEND_URL}/room/${slug}`)
+        if (response.status === 200 ){
+           return response.data.roomId;
+        }
+    }
+    catch(e){
+        
+        alert('Check the RoomId !! or create a new RoomId')
+
+        return null
+    }
+
 }
 
 export default async function({
@@ -18,11 +34,18 @@ export default async function({
 }) {
     const slug = (await params).slug;
     const roomId = await getRoomId(slug);
+
+    if(roomId == null){
+        redirect('/create')
+    }
     
-    return <div>
-        <CanvasRoom roomId={roomId}></CanvasRoom>
+    else{
+        return <div>
+            <CanvasRoom roomId={roomId}></CanvasRoom>
         
-    </div>
+        </div>
+    }
+   
     
 
     

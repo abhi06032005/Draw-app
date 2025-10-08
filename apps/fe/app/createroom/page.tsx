@@ -31,8 +31,12 @@ export default function CreateRoom(){
         <Particles />
 
         <div className="shadow-lg shadow-white/20 absolute flex items-center justify-center flex-col gap-10 backdrop-blur-2xl bg-white/5 rounded-4xl p-10">
+            <div className="flex flex-col items-center justify-center  bg-black">
+            <h1 className="text-white text-5xl font-semibold tracking-wider text-center">
+                Create New Room ID 
+            </h1>
+            </div>
 
-            <h1 className=" text-white text-5xl items-center justify-center font-semibold">Enter Room <br />ID</h1>
             <input className="p-5 backdrop-blur-md bg-white/10 border border-green-400 rounded-2xl hover:shadow-green-400 focus:shadow-green-400 focus:shadow-md focus:outline-none text-white" value={roomId} onChange={(e) => {
             setRoomId(e.target.value);
             }} type="text" placeholder="ROOM NAME"></input>
