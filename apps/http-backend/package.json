@@ -26,6 +26,7 @@
     "author": "",
     "license": "ISC",
     "devDependencies": {
+        "prisma": "^6.16.2",
         "@types/jsonwebtoken": "^9.0.10"
     }
 }
