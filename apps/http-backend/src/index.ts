@@ -222,7 +222,8 @@ app.get("/shapes/:roomId", async function (req, res){
 
 
 
+const port: number = Number(process.env.PORT || 4000)
 
-app.listen(4000 ,"0.0.0.0",()=>{
-    console.log("server started on port 4000")
+app.listen(port ,"0.0.0.0",()=>{
+    console.log(`server started on port ${port}`)
 })
