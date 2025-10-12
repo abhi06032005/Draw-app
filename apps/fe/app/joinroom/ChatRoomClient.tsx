@@ -28,6 +28,10 @@ export default function  ChatRoomClient({
   const offset = useRef({ x: 0, y: 0 });
   const isDragging = useRef(false);
 
+  // whenever the messages props are changed updates the chat
+    useEffect(()=>{
+      setChats(messages)
+    }, [messages])
 
   // Auto-scroll
   useEffect(() => {
