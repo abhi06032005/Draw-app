@@ -4,12 +4,13 @@
     "description": "",
     "main": "index.js",
     "scripts": {
-        "generate": "prisma generate --schema=../../packages/db/prisma/schema.prisma",
-        "migrate": "prisma migrate deploy --schema=../../packages/db/prisma/schema.prisma",
+        "generate": "pnpm exec prisma generate --schema=../../packages/db/prisma/schema.prisma",
+        "migrate": "pnpm exec prisma migrate deploy --schema=../../packages/db/prisma/schema.prisma",
         "build": "pnpm run generate && tsc -b",
         "postinstall": "pnpm run generate",
         "start": "pnpm run migrate && node ./dist/index.js"
     },
+
     "dependencies": {
         "@repo/common-backend": "workspace:*",
         "@repo/db": "workspace:*",
