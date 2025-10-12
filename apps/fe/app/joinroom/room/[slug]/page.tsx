@@ -22,13 +22,12 @@ async function getRoomId(slug: string) {
 
 }
 
-export default async function Page({
-    params
-}: {
-    params: {
-        slug: string
-    }
-}) {
+type Props = {
+  params: {
+    slug: string;
+  };
+};
+export default async function Page({params}:Props) {
     const slug = params.slug;
     const roomId = await getRoomId(slug);
 
