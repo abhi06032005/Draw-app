@@ -14,7 +14,7 @@ export default function  ChatRoomClient({
   socket: WebSocket | null;
 }) {
   const [chats, setChats] = useState(
-    messages.map((m) => (typeof m.message === "string" ? m : { message: "" }))
+    messages.map((m) => (m))
   );
 
   const [currentMessage, setCurrentMessage] = useState("");
@@ -27,14 +27,6 @@ export default function  ChatRoomClient({
   const dragRef = useRef<HTMLDivElement | null>(null);
   const offset = useRef({ x: 0, y: 0 });
   const isDragging = useRef(false);
-
-
-  useEffect(()=>{
-     if (!socket || loading) return;
-
-    socket.send(JSON.stringify({ type: "join_room", roomId: id }));
-  },[socket , loading, id])
-
 
 
   // Auto-scroll
