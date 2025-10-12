@@ -26,7 +26,7 @@ export function CanvasRoom({roomId}: {roomId:string} ){
 
             
         }
-    },[])
+    },[roomId , router])
 
     if(!socket){
         return(
