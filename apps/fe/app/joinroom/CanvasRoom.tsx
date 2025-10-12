@@ -23,7 +23,9 @@ export function CanvasRoom({roomId}: {roomId:string} ){
                 type : "join_room",
                 roomId
             }))
-
+            return()=>{
+                ws.close();
+            }
             
         }
     },[roomId , router])
