@@ -31,7 +31,7 @@ export default function  ChatRoomClient({
      if (!socket || loading) return;
 
     socket.send(JSON.stringify({ type: "join_room", roomId: id }));
-  },[])
+  },[socket , loading, id])
 
 
 
@@ -91,13 +91,16 @@ useEffect(() => {
   const handleSend = () => {
     if (!currentMessage.trim()) return;
 
-    socket?.send(
+    if (socket && socket.readyState === WebSocket.OPEN) {
+    socket.send(
       JSON.stringify({
         type: "chat",
         roomId: id,
         message: currentMessage,
       })
     );
+  }
+
 
     setCurrentMessage("");
   };
