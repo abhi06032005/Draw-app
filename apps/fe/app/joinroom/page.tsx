@@ -1,4 +1,4 @@
-"use client";
+"use client"
 
 import { useEffect, useState } from "react";
 import { ThreeDot } from "react-loading-indicators";
@@ -8,7 +8,7 @@ import { useRouter } from "next/navigation";
 
 import Particles from "@/components/Particles";
 
-export default function joinroom() {
+export default function Joinroom() {
   const [roomId, setRoomId] = useState("");
   const loader =<ThreeDot color="#ffffff" size="medium" text="" textColor="" />
 
