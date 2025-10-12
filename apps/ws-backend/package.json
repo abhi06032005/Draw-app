@@ -10,7 +10,6 @@
         "postinstall": "pnpm run generate",
         "start": "pnpm run migrate && node ./dist/index.js"
     },
-
     "dependencies": {
         "@repo/common-backend": "workspace:*",
         "@repo/db": "workspace:*",
@@ -24,5 +23,9 @@
     },
     "keywords": [],
     "author": "",
-    "license": "ISC"
+    "license": "ISC",
+    "devDependencies": {
+        "@prisma/client": "6.16.2",
+        "prisma": "^6.16.2"
+    }
 }

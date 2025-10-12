@@ -166,6 +166,13 @@ importers:
       ws:
         specifier: ^8.18.3
         version: 8.18.3
+    devDependencies:
+      '@prisma/client':
+        specifier: 6.16.2
+        version: 6.16.2(prisma@6.16.2(typescript@5.9.2))(typescript@5.9.2)
+      prisma:
+        specifier: ^6.16.2
+        version: 6.16.2(typescript@5.9.2)
 
   packages/common:
     dependencies:
