@@ -13,11 +13,11 @@ export default function CreateRoom(){
     const [loading , setLoading] = useState(false);
     const [roomId  , setRoomId] = useState(" ")
     const router = useRouter();
-    const token = localStorage.getItem("Authorization")
     const loader =<ThreeDot color="#ffffff" size="medium" text="" textColor="" />
-
-
+    
+    
     useEffect(()=>{
+        
         const token = localStorage.getItem("Authorization")
     
         if(!token){
@@ -51,6 +51,7 @@ export default function CreateRoom(){
 
             
             onClick={async() => {
+            const token = localStorage.getItem("Authorization")
             const trimroomId = roomId.trim()
             console.log(token)
             if(loading) return;
