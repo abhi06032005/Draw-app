@@ -22,7 +22,7 @@ async function getRoomId(slug: string) {
 
 }
 
-export default async function({
+export default async function Page({
     params
 }: {
     params: {
