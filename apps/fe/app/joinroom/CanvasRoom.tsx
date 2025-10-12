@@ -4,6 +4,7 @@ import { Canvas } from "./Canvas";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
+
 export function CanvasRoom({roomId}: {roomId:string} ){
 
     const [socket , setSocket] = useState<WebSocket | null>(null)
@@ -38,6 +39,7 @@ export function CanvasRoom({roomId}: {roomId:string} ){
 
     return <div>
         <Canvas roomId ={roomId} socket={socket}/>
+        
    
     </div>
 }

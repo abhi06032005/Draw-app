@@ -7,16 +7,18 @@ import { MessageCircle } from "lucide-react";
 export default function  ChatRoomClient({
   messages,
   id,
+  socket
 }: {
   messages: { message: string }[];
   id: string;
+  socket: WebSocket | null;
 }) {
   const [chats, setChats] = useState(
     messages.map((m) => (typeof m.message === "string" ? m : { message: "" }))
   );
 
   const [currentMessage, setCurrentMessage] = useState("");
-  const { socket, loading } = useSocket();
+  const { loading } = useSocket();
   const chatEndRef = useRef<HTMLDivElement | null>(null);
 
   // Floating & toggle state

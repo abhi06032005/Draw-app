@@ -308,8 +308,7 @@ export function Canvas({ roomId, socket }: CanvasProps) {
       
       </div>
 
-      {/* as the chats are empty arr at first it will render 2 times one with no msg and other after getting messages so checking if len > 0  then only renfering */}
-        <ChatRoomClient id={roomId} messages={chats}/>
+        <ChatRoomClient id={roomId} messages={chats} socket={socket}/>
       <canvas
         width={window.innerWidth}
         height={window.innerHeight}
