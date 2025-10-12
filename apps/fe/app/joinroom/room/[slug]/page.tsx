@@ -14,16 +14,10 @@ async function getRoomId(slug: string) {
   }
 }
 
-type Params = {
-    slug: string
-}
+type Params = Promise<{slug: string}>
 
-export default async function Page ({
-  params,
-}: {
-  params:Params;  // keep any to avoid type conflict
-}) {
-  const slug = params.slug;  // no await here
+export default async function Page ({params}: {params : Params}) {
+  const {slug} = await params;  //according to nextjs docs 15 upgrade
   const roomId = await getRoomId(slug);
 
   if (roomId == null) {
