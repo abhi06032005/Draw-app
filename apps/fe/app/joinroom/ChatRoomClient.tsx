@@ -27,18 +27,22 @@ export default function  ChatRoomClient({
   const isDragging = useRef(false);
 
 
+  useEffect(()=>{
+     if (!socket || loading) return;
+
+    socket.send(JSON.stringify({ type: "join_room", roomId: id }));
+  },[])
+
+
 
   // Auto-scroll
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chats]);
 
-  // Join room & listen
+
 useEffect(() => {
-  if (!socket || loading) return;
-
-  socket.send(JSON.stringify({ type: "join_room", roomId: id }));
-
+   if (!socket || loading) return;
   const handleMessage = (event: MessageEvent) => {
     const parsedData = JSON.parse(event.data);
     if (parsedData.type === "chat") {
