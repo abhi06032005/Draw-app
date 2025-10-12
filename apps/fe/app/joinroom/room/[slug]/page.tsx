@@ -14,10 +14,14 @@ async function getRoomId(slug: string) {
   }
 }
 
+type Params = {
+    slug: string
+}
+
 export default async function Page ({
   params,
 }: {
-  params: any;  // keep any to avoid type conflict
+  params:Params;  // keep any to avoid type conflict
 }) {
   const slug = params.slug;  // no await here
   const roomId = await getRoomId(slug);
