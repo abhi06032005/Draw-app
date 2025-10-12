@@ -10,7 +10,7 @@ export function CanvasRoom({roomId}: {roomId:string} ){
 
     const router = useRouter();
     useEffect(()=>{
-        let token = localStorage.getItem("Authorization");
+        const token = localStorage.getItem("Authorization");
         if(!token){
             router.push("/login")
             return;
