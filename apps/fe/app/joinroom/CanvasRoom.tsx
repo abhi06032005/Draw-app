@@ -1,4 +1,4 @@
-"use client"
+"use client";
 import { WS_URL } from "@/config";
 import { Canvas } from "./Canvas";
 import { useEffect, useRef, useState } from "react";
@@ -8,10 +8,10 @@ export function CanvasRoom({roomId}: {roomId:string} ){
 
     const [socket , setSocket] = useState<WebSocket | null>(null)
 
+    const router = useRouter();
     useEffect(()=>{
         let token = localStorage.getItem("Authorization");
         if(!token){
-            const router = useRouter();
             router.push("/login")
             return;
         }
