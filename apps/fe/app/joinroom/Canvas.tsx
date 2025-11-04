@@ -328,7 +328,11 @@ export function Canvas({ roomId, socket }: CanvasProps) {
           onClick={async()=>{ 
             try{
 
-            await axios.delete(`${BACKEND_URL}/delete/${roomId}`)
+            await axios.delete(`${BACKEND_URL}/delete/${roomId}`,{
+                headers: {
+                    Authorization: localStorage.getItem("Authorization") || ""
+                } 
+            })
             }
             catch(e){
               alert("Failed to clear canvas on the server.")
