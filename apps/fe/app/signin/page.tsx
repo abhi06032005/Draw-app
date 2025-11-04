@@ -59,7 +59,7 @@ export default function Signin() {
              </div>
 
             <button
-              className="w-full mt-2 rounded-lg py-3 font-medium bg-gradient-to-r from-emerald-400 to-sky-400 text-black shadow-lg transform 
+              className="w-full mt-2 rounded-lg py-3 font-medium bg-linear-to-r from-emerald-400 to-sky-400 text-black shadow-lg transform
               transition hover:scale-[1.01] hover:shadow-[0_15px_40px_rgba(56,189,248,0.16)] focus:outline-none focus:shadow-[0_0_30px_rgba(56,189,248,0.18)]"
             onClick={async ()=>{
                 try{
