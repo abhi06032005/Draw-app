@@ -326,6 +326,7 @@ export function Canvas({ roomId, socket }: CanvasProps) {
         </button>
         <button
           onClick={async()=>{ 
+            handleClear()
             try{
 
             await axios.delete(`${BACKEND_URL}/delete/${roomId}`,{
@@ -337,8 +338,8 @@ export function Canvas({ roomId, socket }: CanvasProps) {
             catch(e){
               alert("Failed to clear canvas on the server.")
             }
-
-            handleClear()}
+            
+          }
           }
           className="bg-gray-600 items-center justify-center flex rounded-md text-2xl p-2 cursor-pointer hover:bg-gray-400"
         >
