@@ -285,8 +285,15 @@ export function Canvas({ roomId, socket }: CanvasProps) {
   }, [roomId]);
 
   // Clear canvas & shapes on clear button
-  function handleClear() {
+  async function  handleClear() {
     setShapes([]); // clears shapes state, triggers canvas redraw
+    try{
+
+      await axios.delete(`${BACKEND_URL}/delete/${roomId}`)
+    }
+    catch(e){
+      alert("Failed to clear canvas on the server.")
+    }
     setShape("pointer");
   }
 

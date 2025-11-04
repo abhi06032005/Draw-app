@@ -218,6 +218,21 @@ app.get("/shapes/:roomId", async function (req, res){
 
 })
 
+app.delete("/delete/:roomId", middleware , async function(req, res){
+    const roomId = Number(req.params.roomId)
+
+    try{
+        await prismaClient.shapes.deleteMany({
+        where:{
+            roomId : roomId
+        }
+    })
+    }
+    catch(e){
+       res.status(500)
+    }
+   
+})
          
 
 
