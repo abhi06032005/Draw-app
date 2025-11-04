@@ -287,13 +287,7 @@ export function Canvas({ roomId, socket }: CanvasProps) {
   // Clear canvas & shapes on clear button
   async function  handleClear() {
     setShapes([]); // clears shapes state, triggers canvas redraw
-    try{
-
-      await axios.delete(`${BACKEND_URL}/delete/${roomId}`)
-    }
-    catch(e){
-      alert("Failed to clear canvas on the server.")
-    }
+    
     setShape("pointer");
   }
 
@@ -331,7 +325,17 @@ export function Canvas({ roomId, socket }: CanvasProps) {
           <FaEraser />
         </button>
         <button
-          onClick={handleClear}
+          onClick={async()=>{ 
+            try{
+
+            await axios.delete(`${BACKEND_URL}/delete/${roomId}`)
+            }
+            catch(e){
+              alert("Failed to clear canvas on the server.")
+            }
+
+            handleClear()}
+          }
           className="bg-gray-600 items-center justify-center flex rounded-md text-2xl p-2 cursor-pointer hover:bg-gray-400"
         >
           <RiDeleteBin5Line />
