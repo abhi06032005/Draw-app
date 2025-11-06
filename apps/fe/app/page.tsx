@@ -72,12 +72,13 @@ export default function LandingPage() {
 
       {/* Footer */}
       <p className="text-gray-500 text-sm">
-        © {new Date().getFullYear()} ExcileDraw — Draw. Chat. Collaborate.
+        © {new Date().getFullYear()} Abhijeet Nayak
       </p>
       
       {clicked && <Loader />}
     </div>
 );
 }
+
 
 
