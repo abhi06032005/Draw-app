@@ -71,7 +71,7 @@ export default function Signin() {
                     });
                     if(response.status === 201){
                         localStorage.setItem("Authorization", response.data.token)
-                        router.push("/create")
+                        router.push("/dashboard")
                     }
                 }
                 catch(e){
