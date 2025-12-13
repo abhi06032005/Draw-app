@@ -1,4 +1,5 @@
 import express from "express"; 
+import bcrypt from "bcrypt";
 import cors from "cors"
 import {CreateSignupSchema,SigninSchema, CreateRoomSchema} from "@repo/common/types";
 import  jwt  from "jsonwebtoken";
@@ -10,12 +11,13 @@ app.use(express.json())
 app.use(cors({
     origin: "*"
 }));
-//  dont forget this solving took 2hr
+
 
 
 app.post("/signup", async function(req, res){
 
     const parsedData = CreateSignupSchema.safeParse(req.body)
+    const hashedPassword = await bcrypt.hash(req.body.password, 10);
 
     if(!parsedData.success){
         res.status(403).json({
@@ -40,7 +42,7 @@ app.post("/signup", async function(req, res){
         await prismaClient.user.create({
         data:{
             email: parsedData.data.username,
-            password : parsedData.data.password,
+            password : hashedPassword,
             name: parsedData.data.name
         }}
      )
@@ -71,19 +73,29 @@ app.post("/signin", async function(req, res){
     try{
         const user =await prismaClient.user.findFirst({
             where:{
-                email : parsedData.data.username,
-                password: parsedData.data.password
+                email : parsedData.data.username
             }
         })
 
         if(!user){
-            res.status(403).json({
-                message : "wrong username or password"
+            res.status(404).json({
+                message : "User does not exist"
             })
             return
         }
 
-       
+        const matchPassword = await bcrypt.compare(
+            parsedData.data.password,
+            user.password
+        )
+
+       if(!matchPassword){
+        res.status(403).json({
+            message: "Incorrect password"
+        })
+       }
+
+
         const userId = user.id
 
         const token =jwt.sign({
@@ -101,6 +113,32 @@ app.post("/signin", async function(req, res){
    
 })
 
+app.get("/user" , middleware , async function (req , res) 
+{
+    //@ts-ignore
+    const userId = req.userId
+    try{
+        const user = await prismaClient.user.findUnique({
+            where:{id : userId},
+            select:{
+                id: true,
+                email: true,
+                name:true
+            }
+
+        })
+
+        if(!user){
+            return res.status(500).json({message: " internal server error"})
+        }
+
+        res.json(user)
+    }
+    catch(err){
+        return res.status(404)
+    }
+    
+})
 
 app.post("/room", middleware ,async function(req, res){
     const parsedData = CreateRoomSchema.safeParse(req.body)

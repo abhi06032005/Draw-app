@@ -10,14 +10,15 @@
         "start": "pnpm run migrate && node ./dist/index.js",
         "dev": "pnpm run build && pnpm run start"
     },
-
     "dependencies": {
         "@repo/common": "workspace:*",
         "@repo/common-backend": "workspace:*",
         "@repo/db": "workspace:*",
         "@repo/typescript-config": "workspace:*",
+        "@types/bcrypt": "^6.0.0",
         "@types/cors": "^2.8.19",
         "@types/express": "^5.0.3",
+        "bcrypt": "^6.0.0",
         "cors": "^2.8.5",
         "express": "^5.1.0",
         "jsonwebtoken": "^9.0.2"
@@ -26,7 +27,7 @@
     "author": "",
     "license": "ISC",
     "devDependencies": {
-        "prisma": "^6.16.2",
-        "@types/jsonwebtoken": "^9.0.10"
+        "@types/jsonwebtoken": "^9.0.10",
+        "prisma": "^6.16.2"
     }
 }
