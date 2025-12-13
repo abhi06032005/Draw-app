@@ -144,6 +144,10 @@ app.get("/get-rooms", middleware , async function (req , res ) {
     //@ts-ignore
     const userId = req.userId
 
+    if (!userId) {
+    return res.status(401).json({ message: "Unauthorized" })
+    }
+
     try{
         const rooms = await prismaClient.room.findMany({
             where:{adminId :userId},
