@@ -4,8 +4,8 @@
     "description": "",
     "main": "index.js",
     "scripts": {
-        "generate": "prisma generate --schema=../../packages/db/prisma/schema.prisma",
-        "migrate": "prisma migrate deploy --schema=../../packages/db/prisma/schema.prisma",
+        "generate": "pnpm exec prisma generate --schema=../../packages/db/prisma/schema.prisma",
+        "migrate": "pnpm exec prisma migrate deploy --schema=../../packages/db/prisma/schema.prisma",
         "build": "pnpm run generate && tsc -b",
         "start": "pnpm run migrate && node ./dist/index.js",
         "dev": "pnpm run build && pnpm run start"
@@ -28,6 +28,6 @@
     "license": "ISC",
     "devDependencies": {
         "@types/jsonwebtoken": "^9.0.10",
-        "prisma": "^6.16.2"
+        "prisma": "6.16.2"
     }
 }

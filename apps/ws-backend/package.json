@@ -8,7 +8,8 @@
         "migrate": "pnpm exec prisma migrate deploy --schema=../../packages/db/prisma/schema.prisma",
         "build": "pnpm run generate && tsc -b",
         "postinstall": "pnpm run generate",
-        "start": "pnpm run migrate && node ./dist/index.js"
+        "start": "pnpm run migrate && node ./dist/index.js",
+        "dev": "pnpm run generate && ts-node src/index.ts"
     },
     "dependencies": {
         "@repo/common-backend": "workspace:*",
@@ -26,6 +27,6 @@
     "license": "ISC",
     "devDependencies": {
         "@prisma/client": "6.16.2",
-        "prisma": "^6.16.2"
+        "prisma": "6.16.2"
     }
 }

@@ -11,9 +11,12 @@
     },
     "dependencies": {
         "@prisma/client": "6.16.2",
-        "@repo/typescript-config": "workspace:*",
-        "prisma": "^6.16.2"
+        "@repo/typescript-config": "workspace:*"
     },
+    "devDependencies": {
+        "prisma": "6.16.2"
+    },
+
     "keywords": [],
     "author": "",
     "license": "ISC"
