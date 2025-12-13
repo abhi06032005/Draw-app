@@ -140,6 +140,27 @@ app.get("/user" , middleware , async function (req , res)
     
 })
 
+app.get("/get-rooms", middleware , async function (req , res ) {
+    //@ts-ignore
+    const userId = req.userId
+
+    try{
+        const rooms = await prismaClient.room.findMany({
+            where:{adminId :userId},
+            select:{
+                slug : true
+            }
+
+        })
+
+        return res.json(rooms)
+    }
+    catch(err){
+        return res.status(403)
+    }
+
+    
+})
 app.post("/room", middleware ,async function(req, res){
     const parsedData = CreateRoomSchema.safeParse(req.body)
 
