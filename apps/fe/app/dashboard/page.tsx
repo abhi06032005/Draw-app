@@ -1,3 +1,4 @@
+"use client";
 import { BACKEND_URL } from "@/config"
 import axios from "axios"
 import { useEffect, useState } from "react"
@@ -120,3 +121,4 @@ export default function Dashboard() {
     </div>
   )
 }
+
