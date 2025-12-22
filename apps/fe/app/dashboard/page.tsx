@@ -1,67 +1,75 @@
 "use client";
 
-import { BACKEND_URL } from "@/config"
-
-import axios from "axios"
-import { useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
-import Loader from "@/components/Loader"
+import { BACKEND_URL } from "@/config";
+import axios from "axios";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import Loader from "@/components/Loader";
 
 type User = {
-  id: number
-  name: string
-  email: string
-}
+  id: number;
+  name: string;
+  email: string;
+};
 
 type Room = {
-  id: number
-  slug: string
-  createAt: string
-}
+  id: number;
+  slug: string;
+  createAt: string;
+};
 
 export default function Dashboard() {
-  const router = useRouter()
-  const [user, setUser] = useState<User | null>(null)
-  const [rooms, setRooms] = useState<Room[]>([])
-  const [loadingRooms, setLoadingRooms] = useState(true)
+  const router = useRouter();
+  const [user, setUser] = useState<User | null>(null);
+  const [rooms, setRooms] = useState<Room[]>([]);
+  const [loadingRooms, setLoadingRooms] = useState(true);
 
   useEffect(() => {
-    const token = localStorage.getItem("Authorization")
+    const token = localStorage.getItem("Authorization");
 
     if (!token) {
-      router.push("/signin")
-      return
+      router.push("/signin");
+      return;
     }
 
     async function fetchData() {
       try {
-        // 🔹 fetch user
+        // ---- USER ----
         const userRes = await axios.get(`${BACKEND_URL}/user`, {
-          headers: { Authorization: `Bearer ${token}` }
-        })
-        setUser(userRes.data)
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        setUser(userRes.data as User);
 
-        // 🔹 fetch rooms
+        // ---- ROOMS ----
         const roomRes = await axios.get(`${BACKEND_URL}/get-rooms`, {
-          headers: { Authorization: `Bearer ${token}` }
-        })
-        setRooms(roomRes.data.rooms)
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        const data = roomRes.data;
+
+        // Handles: [] or { rooms: [] } or any bad shape gracefully
+        const safeRooms: Room[] = Array.isArray(data?.rooms)
+          ? data.rooms
+          : Array.isArray(data)
+          ? data
+          : [];
+
+        setRooms(safeRooms);
       } catch (err) {
-        router.push("/signin")
+        router.push("/signin");
       } finally {
-        setLoadingRooms(false)
+        setLoadingRooms(false);
       }
     }
 
-    fetchData()
-  }, [router])
+    fetchData();
+  }, [router]);
 
-  if (!user) return <Loader />
+  if (!user) return <Loader />;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-950 via-gray-900 to-black flex justify-center px-4 py-10">
+    <div className="min-h-screen bg-linear-to-br from-gray-950 via-gray-900 to-black flex justify-center px-4 py-10">
       <div className="w-full max-w-md space-y-6">
-
         {/* ---------- PROFILE ---------- */}
         <div className="rounded-2xl bg-gray-900 border border-gray-800 shadow-xl p-6">
           <h1 className="text-2xl font-bold mb-6 text-center text-gray-100">
@@ -71,7 +79,9 @@ export default function Dashboard() {
           <div className="space-y-4 text-sm">
             <div className="flex justify-between">
               <span className="text-gray-400">Name</span>
-              <span className="font-semibold text-gray-100">{user.name}</span>
+              <span className="font-semibold text-gray-100">
+                {user.name}
+              </span>
             </div>
 
             <div className="flex justify-between">
@@ -118,9 +128,7 @@ export default function Dashboard() {
             </ul>
           )}
         </div>
-
       </div>
     </div>
-  )
+  );
 }
-
