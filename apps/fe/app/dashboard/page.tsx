@@ -26,7 +26,7 @@ export default function Dashboard() {
   const [loadingRooms, setLoadingRooms] = useState(true)
 
   useEffect(() => {
-    const token = localStorage.getItem("token")
+    const token = localStorage.getItem("Authorization")
 
     if (!token) {
       router.push("/signin")
