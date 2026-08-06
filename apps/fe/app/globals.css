@@ -3,127 +3,139 @@
 
 @custom-variant dark (&:is(.dark *));
 
-/* Apply this class to your scrollable container */
-
-#chat-window {
-    scrollbar-width: 0px;
-    /* For Firefox */
-    scrollbar-color: #4B5563 transparent;
-    /* For Firefox */
-}
-
-@theme inline {
-    --radius-sm: calc(var(--radius) - 4px);
-    --radius-md: calc(var(--radius) - 2px);
-    --radius-lg: var(--radius);
-    --radius-xl: calc(var(--radius) + 4px);
-    --color-background: var(--background);
-    --color-foreground: var(--foreground);
-    --color-card: var(--card);
-    --color-card-foreground: var(--card-foreground);
-    --color-popover: var(--popover);
-    --color-popover-foreground: var(--popover-foreground);
-    --color-primary: var(--primary);
-    --color-primary-foreground: var(--primary-foreground);
-    --color-secondary: var(--secondary);
-    --color-secondary-foreground: var(--secondary-foreground);
-    --color-muted: var(--muted);
-    --color-muted-foreground: var(--muted-foreground);
-    --color-accent: var(--accent);
-    --color-accent-foreground: var(--accent-foreground);
-    --color-destructive: var(--destructive);
-    --color-border: var(--border);
-    --color-input: var(--input);
-    --color-ring: var(--ring);
-    --color-chart-1: var(--chart-1);
-    --color-chart-2: var(--chart-2);
-    --color-chart-3: var(--chart-3);
-    --color-chart-4: var(--chart-4);
-    --color-chart-5: var(--chart-5);
-    --color-sidebar: var(--sidebar);
-    --color-sidebar-foreground: var(--sidebar-foreground);
-    --color-sidebar-primary: var(--sidebar-primary);
-    --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-    --color-sidebar-accent: var(--sidebar-accent);
-    --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-    --color-sidebar-border: var(--sidebar-border);
-    --color-sidebar-ring: var(--sidebar-ring);
-}
-
+/* ─── Memphis Color Tokens ─────────────────────────────────────────── */
 :root {
-    --radius: 0.625rem;
-    --background: oklch(1 0 0);
-    --foreground: oklch(0.145 0 0);
-    --card: oklch(1 0 0);
-    --card-foreground: oklch(0.145 0 0);
-    --popover: oklch(1 0 0);
-    --popover-foreground: oklch(0.145 0 0);
-    --primary: oklch(0.205 0 0);
-    --primary-foreground: oklch(0.985 0 0);
-    --secondary: oklch(0.97 0 0);
-    --secondary-foreground: oklch(0.205 0 0);
-    --muted: oklch(0.97 0 0);
-    --muted-foreground: oklch(0.556 0 0);
-    --accent: oklch(0.97 0 0);
-    --accent-foreground: oklch(0.205 0 0);
-    --destructive: oklch(0.577 0.245 27.325);
-    --border: oklch(0.922 0 0);
-    --input: oklch(0.922 0 0);
-    --ring: oklch(0.708 0 0);
-    --chart-1: oklch(0.646 0.222 41.116);
-    --chart-2: oklch(0.6 0.118 184.704);
-    --chart-3: oklch(0.398 0.07 227.392);
-    --chart-4: oklch(0.828 0.189 84.429);
-    --chart-5: oklch(0.769 0.188 70.08);
-    --sidebar: oklch(0.985 0 0);
-    --sidebar-foreground: oklch(0.145 0 0);
-    --sidebar-primary: oklch(0.205 0 0);
-    --sidebar-primary-foreground: oklch(0.985 0 0);
-    --sidebar-accent: oklch(0.97 0 0);
-    --sidebar-accent-foreground: oklch(0.205 0 0);
-    --sidebar-border: oklch(0.922 0 0);
-    --sidebar-ring: oklch(0.708 0 0);
+  --memphis-cream: #f5efe2;
+  --memphis-ink: #17140d;
+  --memphis-teal: #12b3a4;
+  --memphis-coral: #ff5b57;
+  --memphis-mustard: #ffc531;
+  --memphis-violet: #6b5be6;
+  --memphis-sky: #3aa0ff;
 }
 
-.dark {
-    --background: oklch(0.145 0 0);
-    --foreground: oklch(0.985 0 0);
-    --card: oklch(0.205 0 0);
-    --card-foreground: oklch(0.985 0 0);
-    --popover: oklch(0.205 0 0);
-    --popover-foreground: oklch(0.985 0 0);
-    --primary: oklch(0.922 0 0);
-    --primary-foreground: oklch(0.205 0 0);
-    --secondary: oklch(0.269 0 0);
-    --secondary-foreground: oklch(0.985 0 0);
-    --muted: oklch(0.269 0 0);
-    --muted-foreground: oklch(0.708 0 0);
-    --accent: oklch(0.269 0 0);
-    --accent-foreground: oklch(0.985 0 0);
-    --destructive: oklch(0.704 0.191 22.216);
-    --border: oklch(1 0 0 / 10%);
-    --input: oklch(1 0 0 / 15%);
-    --ring: oklch(0.556 0 0);
-    --chart-1: oklch(0.488 0.243 264.376);
-    --chart-2: oklch(0.696 0.17 162.48);
-    --chart-3: oklch(0.769 0.188 70.08);
-    --chart-4: oklch(0.627 0.265 303.9);
-    --chart-5: oklch(0.645 0.246 16.439);
-    --sidebar: oklch(0.205 0 0);
-    --sidebar-foreground: oklch(0.985 0 0);
-    --sidebar-primary: oklch(0.488 0.243 264.376);
-    --sidebar-primary-foreground: oklch(0.985 0 0);
-    --sidebar-accent: oklch(0.269 0 0);
-    --sidebar-accent-foreground: oklch(0.985 0 0);
-    --sidebar-border: oklch(1 0 0 / 10%);
-    --sidebar-ring: oklch(0.556 0 0);
+body {
+  background-color: var(--memphis-cream);
+  color: var(--memphis-ink);
+  font-family: var(--font-dm-sans), sans-serif;
+  overflow-x: hidden;
 }
 
-@layer base {
-  * {
-    @apply border-border outline-ring/50;
-    }
-  body {
-    @apply bg-background text-foreground;
-    }
+h1, h2, h3, .font-display {
+  font-family: var(--font-bricolage), sans-serif;
+}
+
+/* ─── Keyframe Animations (CSS ONLY, NO JS) ───────────────────────── */
+@keyframes memphis-drift {
+  0%, 100% { transform: translateY(0px) rotate(0deg); }
+  50%       { transform: translateY(-16px) rotate(12deg); }
+}
+
+@keyframes memphis-spin {
+  0%   { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes memphis-bob {
+  0%, 100% { transform: translateY(0px); }
+  50%       { transform: translateY(-12px); }
+}
+
+@keyframes memphis-sway {
+  0%, 100% { transform: rotate(-8deg); }
+  50%       { transform: rotate(8deg); }
+}
+
+.anim-drift { animation: memphis-drift 7s ease-in-out infinite; }
+.anim-spin  { animation: memphis-spin 24s linear infinite; }
+.anim-bob   { animation: memphis-bob 5s ease-in-out infinite; }
+.anim-sway  { animation: memphis-sway 6s ease-in-out infinite; }
+
+/* ─── Memphis Hard Offset Shadows & Buttons ──────────────────────── */
+.memphis-shadow-lg {
+  box-shadow: 8px 8px 0px #17140d;
+}
+
+.memphis-shadow-md {
+  box-shadow: 5px 5px 0px #17140d;
+}
+
+.memphis-shadow-sm {
+  box-shadow: 3px 3px 0px #17140d;
+}
+
+.memphis-btn {
+  border: 3px solid #17140d;
+  box-shadow: 8px 8px 0px #17140d;
+  transition: transform 0.15s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.15s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.memphis-btn:hover {
+  transform: translate(3px, 3px);
+  box-shadow: 5px 5px 0px #17140d;
+}
+
+.memphis-btn:active {
+  transform: translate(6px, 6px);
+  box-shadow: 2px 2px 0px #17140d;
+}
+
+.memphis-btn-sm {
+  border: 3px solid #17140d;
+  box-shadow: 5px 5px 0px #17140d;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.memphis-btn-sm:hover {
+  transform: translate(2px, 2px);
+  box-shadow: 3px 3px 0px #17140d;
+}
+
+.memphis-card {
+  border: 3px solid #17140d;
+  box-shadow: 8px 8px 0px #17140d;
+  border-radius: 22px;
+  background: #ffffff;
+}
+
+/* ─── Marker Highlight Bar ────────────────────────────────────────── */
+.marker-highlight {
+  position: relative;
+  display: inline-block;
+  z-index: 1;
+  padding: 0 4px;
+}
+
+.marker-highlight::before {
+  content: "";
+  position: absolute;
+  left: -4px;
+  right: -4px;
+  bottom: 4px;
+  height: 55%;
+  background-color: var(--highlight-color, #ffc531);
+  z-index: -1;
+  transform: rotate(var(--highlight-rot, -1.5deg));
+  border-radius: 4px;
+  border: 2px solid #17140d;
+}
+
+/* ─── Terrazzo Pattern Definition ─────────────────────────────────── */
+.terrazzo-bg {
+  background-color: #ff5b57;
+  background-image: radial-gradient(#17140d 15%, transparent 16%), radial-gradient(#ffffff 15%, transparent 16%);
+  background-size: 16px 16px;
+  background-position: 0 0, 8px 8px;
+}
+
+/* ─── Scrollbar Customization ─────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #f5efe2;
+}
+::-webkit-scrollbar-thumb {
+  background: #17140d;
+  border-radius: 4px;
 }

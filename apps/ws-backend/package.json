@@ -8,8 +8,8 @@
         "migrate": "pnpm exec prisma migrate deploy --schema=../../packages/db/prisma/schema.prisma",
         "build": "pnpm run generate && tsc -b",
         "postinstall": "pnpm run generate",
-        "start": "pnpm run migrate && node ./dist/index.js",
-        "dev": "pnpm run generate && ts-node src/index.ts"
+        "start": "pnpm run migrate && node --env-file=.env ./dist/index.js",
+        "dev": "ts-node src/index.ts"
     },
     "dependencies": {
         "@repo/common-backend": "workspace:*",

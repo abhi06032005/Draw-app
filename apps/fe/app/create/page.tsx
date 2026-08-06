@@ -1,38 +1,68 @@
 "use client";
 
-import Particles from "@/components/Particles";
 import { useRouter } from "next/navigation";
 
-export default function CreateRoom() {
-    const router =  useRouter();
-  return (
-    <div className="select-none relative h-screen w-screen flex flex-col items-center justify-center bg-black text-white overflow-hidden">
-      {/* Background particles animation */}
-      <div className="mt-10 ml-10 items-center justify-center ">
+export default function CreatePage() {
+  const router = useRouter();
 
-      <Particles className="absolute h-screen w-screen inset-0 z-0" />
+  return (
+    <div className="min-h-screen animated-bg flex flex-col items-center justify-center px-4 py-12">
+      {/* Blobs */}
+      <div className="pointer-events-none fixed inset-0 overflow-hidden">
+        <div className="mesh-blob" style={{ width: 500, height: 500, background: "radial-gradient(circle, #7c3aed 0%, transparent 70%)", top: "-150px", left: "-150px" }} />
+        <div className="mesh-blob" style={{ width: 400, height: 400, background: "radial-gradient(circle, #0891b2 0%, transparent 70%)", bottom: "-100px", right: "-100px", animationDelay: "-8s", opacity: 0.1 }} />
       </div>
 
-      {/* Main content */}
-      <div className=" absolute z-10 text-center space-y-6 ">
-        <h1 className="text-4xl font-bold">Create Room</h1>
-        <p className="text-lg max-w-lg mx-auto text-gray-300">
-          Create a room and enjoy the fun moments of a collaborative session.
+      <div className="relative z-10 text-center max-w-xl w-full">
+        {/* Logo */}
+        <button
+          onClick={() => router.push("/dashboard")}
+          className="inline-flex items-center gap-2 mb-10 text-white/40 hover:text-white/70 transition-colors text-sm"
+        >
+          <span>←</span> Back to dashboard
+        </button>
+
+        <div className="text-5xl mb-5 float">🎨</div>
+        <h1 className="text-4xl sm:text-5xl font-black text-white mb-4">
+          Start <span className="gradient-text">Collaborating</span>
+        </h1>
+        <p className="text-white/40 text-lg mb-10 leading-relaxed">
+          Create a new canvas room or jump into an existing one with a room ID.
         </p>
 
-        {/* Buttons */}
-        <div className="flex flex-col sm:flex-row gap-4 justify-center mt-6">
-          <button className="px-6 py-3 bg-white text-black rounded-xl font-semibold hover:bg-gray-200 transition"
-          onClick={()=>{
-              router.push('/createroom')
-          }}>
-            Create New Room
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+          {/* Create */}
+          <button
+            onClick={() => router.push("/createroom")}
+            className="feature-card glass-card rounded-2xl border border-white/7 p-7 text-left group"
+          >
+            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-violet-500/30 to-indigo-500/20 flex items-center justify-center text-3xl mb-5 float border border-violet-500/20">
+              ➕
+            </div>
+            <h3 className="font-black text-white text-xl mb-2">Create New Room</h3>
+            <p className="text-white/40 text-sm leading-relaxed">
+              Set up a fresh canvas with a unique room ID. Invite anyone to join instantly.
+            </p>
+            <div className="mt-5 inline-flex items-center gap-1.5 text-violet-400 font-bold text-sm">
+              Create room <span className="group-hover:translate-x-1 transition-transform inline-block">→</span>
+            </div>
           </button>
-          <button className="px-6 py-3 bg-transparent border border-white rounded-xl font-semibold hover:bg-white hover:text-black transition"
-          onClick={()=>{
-            router.push('/joinroom')
-          }}>
-            Join Existing Room
+
+          {/* Join */}
+          <button
+            onClick={() => router.push("/joinroom")}
+            className="feature-card glass-card rounded-2xl border border-white/7 p-7 text-left group"
+          >
+            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-sky-500/30 to-blue-500/20 flex items-center justify-center text-3xl mb-5 float border border-sky-500/20" style={{ animationDelay: "1.5s" }}>
+              🚪
+            </div>
+            <h3 className="font-black text-white text-xl mb-2">Join Existing Room</h3>
+            <p className="text-white/40 text-sm leading-relaxed">
+              Have a room ID? Enter it to join your team's collaborative canvas.
+            </p>
+            <div className="mt-5 inline-flex items-center gap-1.5 text-sky-400 font-bold text-sm">
+              Enter room ID <span className="group-hover:translate-x-1 transition-transform inline-block">→</span>
+            </div>
           </button>
         </div>
       </div>

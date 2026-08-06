@@ -1,91 +1,148 @@
 "use client";
+
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import Particles from "@/components/Particles";
 import axios from "axios";
 import { BACKEND_URL } from "@/config";
-import { ThreeDot } from "react-loading-indicators";
+import Link from "next/link";
+import { Pencil, Plus, ArrowLeft, ArrowRight, Sparkles } from "lucide-react";
 
+export default function CreateRoom() {
+  const [loading, setLoading] = useState(false);
+  const [roomId, setRoomId] = useState("");
+  const [error, setError] = useState("");
+  const router = useRouter();
 
+  useEffect(() => {
+    const token = localStorage.getItem("Authorization");
+    if (!token) {
+      router.push("/signin");
+    }
+  }, [router]);
 
-export default function CreateRoom(){
+  const handleCreate = async () => {
+    const trimmedId = roomId.trim();
+    if (!trimmedId) {
+      setError("Please enter a room name.");
+      return;
+    }
+    if (trimmedId.length < 3) {
+      setError("Room name must be at least 3 characters.");
+      return;
+    }
+    setError("");
+    setLoading(true);
 
-    const [loading , setLoading] = useState(false);
-    const [roomId  , setRoomId] = useState(" ")
-    const router = useRouter();
-    const loader =<ThreeDot color="#ffffff" size="medium" text="" textColor="" />
-    
-    
-    useEffect(()=>{
+    const token = localStorage.getItem("Authorization");
+    try {
+      const response = await axios.post(
+        `${BACKEND_URL}/room`,
+        { name: trimmedId },
+        { headers: { authorization: `Bearer ${token}` } }
+      );
+      if (response.status === 201) {
+        router.push("/joinroom");
+      }
+    } catch (e: any) {
+      setLoading(false);
+      if (e.response?.status === 409) {
+        setError("A room with this name already exists. Try a different name.");
+      } else {
+        setError("Failed to create room. Please try again.");
+      }
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-[#f5efe2] text-[#17140d] flex flex-col items-center justify-center p-6 relative overflow-hidden select-none">
+      
+      {/* Background Animated Memphis Confetti */}
+      <div className="pointer-events-none absolute inset-0 overflow-hidden z-0">
+        <div className="absolute top-[10%] left-[5%] anim-drift">
+          <svg width="44" height="44" viewBox="0 0 48 48" fill="none">
+            <polygon points="24,4 44,42 4,42" fill="#6b5be6" stroke="#17140d" strokeWidth="3" strokeLinejoin="round" />
+          </svg>
+        </div>
+        <div className="absolute bottom-[12%] right-[8%] anim-spin">
+          <svg width="56" height="56" viewBox="0 0 60 60" fill="none">
+            <circle cx="30" cy="30" r="26" fill="#ffc531" stroke="#17140d" strokeWidth="3" strokeDasharray="4 4" />
+          </svg>
+        </div>
+      </div>
+
+      <div className="w-full max-w-md relative z-10">
         
-        const token = localStorage.getItem("Authorization")
-    
-        if(!token){
-          alert("User Not Signed In")
-          router.push("/signin")
-          return;
-        }
-      },[])
+        {/* Back Link */}
+        <button
+          onClick={() => router.push("/dashboard")}
+          className="inline-flex items-center gap-2 mb-6 font-bold text-xs text-[#17140d]/70 hover:text-[#17140d] transition-colors"
+        >
+          <ArrowLeft size={14} /> Back to Dashboard
+        </button>
 
-
-     return (<>
-    <div className="w-screen h-screen overflow-x-hidden overflow-y-hidden bg-black items-center justify-center flex ">
-        <Particles />
-
-        <div className="shadow-lg shadow-white/20 absolute flex items-center justify-center flex-col gap-10 backdrop-blur-2xl bg-white/5 rounded-4xl p-10">
-            <div className="flex flex-col items-center justify-center  bg-black">
-            <h1 className="text-white text-5xl font-semibold tracking-wider text-center">
-                Create New Room ID 
+        {/* Memphis Card */}
+        <div className="memphis-card p-8 bg-white text-left">
+          
+          <div className="text-center mb-6">
+            <div className="w-14 h-14 bg-[#6b5be6] border-[3px] border-[#17140d] memphis-shadow-sm rounded-2xl flex items-center justify-center text-white mx-auto mb-3">
+              <Plus size={28} strokeWidth={3} />
+            </div>
+            <h1 className="font-display font-black text-3xl text-[#17140d] mb-1">
+              Create Room
             </h1>
+            <p className="text-xs font-medium text-[#17140d]/70">
+              Give your room a unique slug name to start collaborating.
+            </p>
+          </div>
+
+          <div className="space-y-4">
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-wider text-[#17140d] mb-1.5">
+                Room Name / Slug
+              </label>
+              <input
+                type="text"
+                value={roomId}
+                onChange={(e) => { setRoomId(e.target.value); setError(""); }}
+                onKeyDown={(e) => e.key === "Enter" && handleCreate()}
+                placeholder="e.g. design-sprint-2026"
+                className="w-full px-4 py-3 rounded-xl border-[3px] border-[#17140d] text-sm font-mono font-bold bg-[#f5efe2]/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#6b5be6]"
+                disabled={loading}
+                autoFocus
+              />
+              <p className="text-[11px] font-medium text-[#17140d]/50 mt-1">
+                Use lowercase letters, numbers, and hyphens.
+              </p>
             </div>
 
-            <input className="p-5 backdrop-blur-md bg-white/10 border border-green-400 rounded-2xl hover:shadow-green-400 focus:shadow-green-400 focus:shadow-md focus:outline-none text-white" value={roomId} onChange={(e) => {
-            setRoomId(e.target.value);
-            }} type="text" placeholder="ROOM NAME"></input>
+            {error && (
+              <div className="bg-[#ff5b57]/15 border-2 border-[#17140d] rounded-xl px-4 py-2.5 text-xs font-bold text-[#ff5b57]">
+                {error}
+              </div>
+            )}
 
-           <button className={`py-3 px-5 font-bold rounded-2xl 
-              ${loading
-                ? "bg-transparent border-none shadow-none text-gray-400 cursor-not-allowed" 
-                : "bg-amber-300 hover:bg-amber-200 border border-green-400 hover:shadow-green-400 focus:shadow-green-400 focus:shadow-md focus:outline-none cursor-pointer text-black hover:shadow-lg"
-              }`}
+            <button
+              onClick={handleCreate}
+              disabled={loading}
+              className="memphis-btn bg-[#6b5be6] text-white font-black text-base w-full py-3.5 rounded-xl flex items-center justify-center gap-2 mt-2 disabled:opacity-60"
+            >
+              {loading ? "Creating room…" : "Create Room"} <ArrowRight size={18} strokeWidth={3} />
+            </button>
+          </div>
 
-            
-            onClick={async() => {
-            const token = localStorage.getItem("Authorization")
-            const trimroomId = roomId.trim()
-            console.log(token)
-            if(loading) return;
-            setLoading(c=>!c)
-            try{
-                const response = await axios.post(`${BACKEND_URL}/room`,{
-                name:trimroomId
-                },{
-                    headers:{
-                        authorization:`Bearer ${token}`
-                    }
-                })
-                if (response.status == 201){
-                    router.push('/joinroom')
-                }
+          <div className="mt-6 pt-4 border-t-2 border-[#17140d]/10 text-center">
+            <span className="text-xs font-medium text-[#17140d]/60">Want to join an existing room? </span>
+            <button
+              onClick={() => router.push("/joinroom")}
+              className="text-xs font-bold text-[#6b5be6] hover:underline"
+            >
+              Join a room →
+            </button>
+          </div>
 
-            }
-            catch(e){
-                alert("Server while creating a room !! create Again")
-                setLoading(false)
-                router.refresh()
-            }
-           
-            
-            }}
-            > {loading ?loader: "CREATE ROOM"} </button>
-
-            
-        
         </div>
+
+      </div>
     </div>
-   
-    
-  </>
-   
   );
 }
