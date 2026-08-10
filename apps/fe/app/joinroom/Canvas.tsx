@@ -313,23 +313,24 @@ async function getExistingShapes(roomId: string): Promise<Shapes[]> {
   } catch { return []; }
 }
 
-async function getExistingChats(roomId: string): Promise<{ message: string }[]> {
+async function getExistingChats(roomId: string): Promise<{ message: string; userId?: string; userName?: string }[]> {
   try {
     const res = await axios.get(`${BACKEND_URL}/chats/${roomId}`);
     const messages = res.data?.messages || [];
     return messages
-      .map((x: { message: string }) => {
-        if (typeof x.message === "string") return { message: x.message };
-        try { return JSON.parse(x.message); } catch { return null; }
-      })
-      .filter(Boolean);
+      .map((x: any) => ({
+        message: x.message,
+        userId: x.userId || x.user?.id,
+        userName: x.user?.name || "Collaborator",
+      }))
+      .filter((m: any) => Boolean(m.message));
   } catch { return []; }
 }
 
 // ─── Main Component ───────────────────────────────────────────────────
 export function Canvas({ roomId, socket }: CanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [chats, setChats] = useState<{ message: string }[]>([]);
+  const [chats, setChats] = useState<{ message: string; userId?: string; userName?: string }[]>([]);
   const [activeTool, setActiveTool] = useState<Tool>("pointer");
   const [shapes, setShapes] = useState<Shapes[]>([]);
   const [selectedIdx, setSelectedIdx] = useState<number | null>(null);

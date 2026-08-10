@@ -176,20 +176,16 @@ export default function Dashboard() {
 
             {/* User Profile Card */}
             <div className="bg-[#f5efe2] border-[3px] border-[#17140d] rounded-2xl p-4 memphis-shadow-sm">
-              <div className="flex items-center gap-3 mb-3">
+              <div className="flex items-center gap-3">
                 <div className="w-12 h-12 rounded-xl bg-[#ff5b57] border-[3px] border-[#17140d] flex items-center justify-center font-black text-white text-base flex-shrink-0">
                   {initials}
                 </div>
-                <div className="min-w-0">
+                <div className="min-w-0 flex-1 flex items-center justify-between">
                   <div className="font-display font-bold text-[#17140d] text-base truncate">{user.name}</div>
-                  <div className="text-xs text-[#17140d]/60 truncate font-medium">{user.email}</div>
-                </div>
-              </div>
-              <div className="flex items-center justify-between pt-2 border-t-2 border-[#17140d]/10 text-xs font-bold">
-                <span className="text-[#17140d]/50">ID: #{user.id}</span>
-                <div className="flex items-center gap-1.5 text-[#12b3a4]">
-                  <span className="w-2 h-2 rounded-full bg-[#12b3a4] animate-pulse" />
-                  <span>Online</span>
+                  <div className="flex items-center gap-1.5 text-[#12b3a4] text-xs font-bold flex-shrink-0">
+                    <span className="w-2 h-2 rounded-full bg-[#12b3a4] animate-pulse" />
+                    <span>Online</span>
+                  </div>
                 </div>
               </div>
             </div>

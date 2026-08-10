@@ -3,9 +3,13 @@
 import { useEffect, useState, useRef } from "react";
 import { useSocket } from "../hooks/useSocket";
 import { MessageCircle, X, Send } from "lucide-react";
+import { BACKEND_URL } from "@/config";
+import axios from "axios";
 
 interface Message {
   message: string;
+  userId?: string;
+  userName?: string;
   timestamp?: number;
   isSelf?: boolean;
 }
@@ -17,24 +21,49 @@ export default function ChatRoomClient({
   isOpen,
   onToggle,
 }: {
-  messages: { message: string }[];
+  messages: { message: string; userId?: string; userName?: string }[];
   id: string | number;
   socket: WebSocket | null;
   isOpen: boolean;
   onToggle: () => void;
 }) {
-  const [chats, setChats] = useState<Message[]>(
-    messages.map((m) => ({ message: m.message }))
-  );
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [currentUserName, setCurrentUserName] = useState<string>("You");
+  const [chats, setChats] = useState<Message[]>([]);
   const [currentMessage, setCurrentMessage] = useState("");
   const { loading } = useSocket();
   const chatEndRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
-  // Sync props → state
+  // Fetch logged in user details
   useEffect(() => {
-    setChats(messages.map((m) => ({ message: m.message, timestamp: Date.now() })));
-  }, [messages]);
+    const token = localStorage.getItem("Authorization");
+    if (!token) return;
+    axios
+      .get(`${BACKEND_URL}/user`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      .then((res) => {
+        if (res.data?.id) {
+          setCurrentUserId(res.data.id);
+          if (res.data.name) setCurrentUserName(res.data.name);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  // Sync props → state when messages prop updates or user finishes loading
+  useEffect(() => {
+    setChats(
+      messages.map((m) => ({
+        message: m.message,
+        userId: m.userId,
+        userName: m.userName || "Collaborator",
+        timestamp: Date.now(),
+        isSelf: currentUserId ? m.userId === currentUserId : false,
+      }))
+    );
+  }, [messages, currentUserId]);
 
   // Auto-scroll
   useEffect(() => {
@@ -50,17 +79,30 @@ export default function ChatRoomClient({
   useEffect(() => {
     if (!socket || loading) return;
     const handleMessage = (event: MessageEvent) => {
-      const parsedData = JSON.parse(event.data);
-      if (parsedData.type === "chat") {
-        setChats((c) => [
-          ...c,
-          { message: parsedData.message, timestamp: Date.now(), isSelf: false },
-        ]);
+      try {
+        const parsedData = JSON.parse(event.data);
+        if (parsedData.type === "chat") {
+          const isSelf = currentUserId
+            ? parsedData.userId === currentUserId
+            : false;
+          setChats((c) => [
+            ...c,
+            {
+              message: parsedData.message,
+              userId: parsedData.userId,
+              userName: parsedData.userName || "Collaborator",
+              timestamp: Date.now(),
+              isSelf,
+            },
+          ]);
+        }
+      } catch (e) {
+        console.error("Error parsing WebSocket message:", e);
       }
     };
     socket.addEventListener("message", handleMessage);
     return () => socket.removeEventListener("message", handleMessage);
-  }, [socket, loading, id]);
+  }, [socket, loading, id, currentUserId]);
 
   const handleSend = () => {
     const trimmed = currentMessage.trim();
@@ -69,11 +111,6 @@ export default function ChatRoomClient({
       socket.send(
         JSON.stringify({ type: "chat", roomId: id, message: trimmed })
       );
-      // Optimistically add own message
-      setChats((c) => [
-        ...c,
-        { message: trimmed, timestamp: Date.now(), isSelf: true },
-      ]);
     }
     setCurrentMessage("");
   };
@@ -84,8 +121,9 @@ export default function ChatRoomClient({
     return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   }
 
-  function getInitial(msg: string) {
-    return msg.charAt(0).toUpperCase() || "?";
+  function getInitial(name?: string) {
+    if (!name) return "?";
+    return name.charAt(0).toUpperCase();
   }
 
   return (
@@ -139,7 +177,10 @@ export default function ChatRoomClient({
                 <div className="text-sm font-bold text-white leading-tight">Chat</div>
                 <div className="flex items-center gap-1.5">
                   <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                  <span className="text-xs text-white/40">Room · {String(id || "").slice(0, 16)}{String(id || "").length > 16 ? "…" : ""}</span>
+                  <span className="text-xs text-white/40">
+                    Room · {String(id || "").slice(0, 16)}
+                    {String(id || "").length > 16 ? "…" : ""}
+                  </span>
                 </div>
               </div>
             </div>
@@ -152,7 +193,7 @@ export default function ChatRoomClient({
           </div>
 
           {/* Messages */}
-          <div className="flex-1 overflow-y-auto p-3 space-y-2.5">
+          <div className="flex-1 overflow-y-auto p-3 space-y-3">
             {chats.length === 0 ? (
               <div className="h-full flex flex-col items-center justify-center text-center gap-3">
                 <div className="text-3xl">💬</div>
@@ -163,41 +204,65 @@ export default function ChatRoomClient({
               chats.map((m, idx) => {
                 const isSelf = m.isSelf === true;
                 return (
-                  <div key={idx} className={`chat-message flex items-end gap-2 ${isSelf ? "flex-row-reverse" : "flex-row"}`}>
+                  <div
+                    key={idx}
+                    className={`chat-message flex items-end gap-2 ${
+                      isSelf ? "flex-row-reverse" : "flex-row"
+                    }`}
+                  >
                     {/* Avatar */}
                     {!isSelf && (
                       <div
-                        className="w-6 h-6 rounded-lg flex items-center justify-center text-xs font-bold text-white flex-shrink-0"
-                        style={{ background: `hsl(${(idx * 67) % 360}, 60%, 45%)` }}
+                        className="w-7 h-7 rounded-full bg-violet-600/80 border border-violet-400/40 flex items-center justify-center text-xs font-black text-white flex-shrink-0"
+                        title={m.userName || "Collaborator"}
                       >
-                        {getInitial(m.message)}
+                        {getInitial(m.userName)}
                       </div>
                     )}
 
-                    {/* Bubble */}
-                    <div className={`max-w-[75%] ${isSelf ? "items-end" : "items-start"} flex flex-col gap-0.5`}>
+                    {/* Bubble Container */}
+                    <div
+                      className={`max-w-[78%] ${
+                        isSelf ? "items-end" : "items-start"
+                      } flex flex-col gap-1`}
+                    >
+                      {/* Sender Name for incoming messages */}
+                      {!isSelf && (
+                        <span className="text-[11px] font-bold text-violet-300/90 px-1 leading-none">
+                          {m.userName || "Collaborator"}
+                        </span>
+                      )}
+
+                      {/* Text Bubble */}
                       <div
-                        className="px-3 py-2 rounded-2xl text-sm leading-relaxed break-words"
+                        className="px-3.5 py-2 rounded-2xl text-sm leading-relaxed break-words"
                         style={{
                           background: isSelf
-                            ? "linear-gradient(135deg, rgba(124, 58, 237, 0.6), rgba(79, 70, 229, 0.6))"
-                            : "rgba(255, 255, 255, 0.06)",
-                          color: isSelf ? "rgba(255,255,255,0.95)" : "rgba(255,255,255,0.8)",
+                            ? "linear-gradient(135deg, rgba(124, 58, 237, 0.8), rgba(79, 70, 229, 0.8))"
+                            : "rgba(255, 255, 255, 0.08)",
+                          color: isSelf ? "#ffffff" : "rgba(255,255,255,0.95)",
                           border: isSelf
-                            ? "1px solid rgba(139, 92, 246, 0.3)"
-                            : "1px solid rgba(255, 255, 255, 0.06)",
-                          borderRadius: isSelf ? "18px 18px 4px 18px" : "18px 18px 18px 4px",
+                            ? "1px solid rgba(139, 92, 246, 0.4)"
+                            : "1px solid rgba(255, 255, 255, 0.1)",
+                          borderRadius: isSelf
+                            ? "18px 18px 4px 18px"
+                            : "18px 18px 18px 4px",
                         }}
                       >
                         {m.message}
                       </div>
-                      <div className="text-xs text-white/20 px-1">{formatTime(m.timestamp)}</div>
+                      <div className="text-[10px] text-white/30 px-1 font-medium">
+                        {formatTime(m.timestamp)}
+                      </div>
                     </div>
 
-                    {/* Self avatar */}
+                    {/* Self Avatar */}
                     {isSelf && (
-                      <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-violet-500 to-indigo-500 flex items-center justify-center text-xs font-bold text-white flex-shrink-0">
-                        Y
+                      <div
+                        className="w-7 h-7 rounded-full bg-indigo-600/80 border border-indigo-400/40 flex items-center justify-center text-xs font-black text-white flex-shrink-0"
+                        title={currentUserName}
+                      >
+                        {getInitial(currentUserName)}
                       </div>
                     )}
                   </div>
@@ -241,7 +306,9 @@ export default function ChatRoomClient({
                 background: currentMessage.trim()
                   ? "linear-gradient(135deg, #7c3aed, #4f46e5)"
                   : "rgba(255,255,255,0.05)",
-                boxShadow: currentMessage.trim() ? "0 4px 12px rgba(124,58,237,0.4)" : "none",
+                boxShadow: currentMessage.trim()
+                  ? "0 4px 12px rgba(124,58,237,0.4)"
+                  : "none",
               }}
             >
               <Send size={14} className="text-white" />
