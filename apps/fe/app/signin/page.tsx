@@ -30,7 +30,7 @@ function SigninContent() {
         username: username.trim(),
         password: password.trim(),
       });
-      if (response.status === 201) {
+      if (response.status === 200) {
         localStorage.setItem("Authorization", response.data.token);
         router.push("/dashboard");
       }
