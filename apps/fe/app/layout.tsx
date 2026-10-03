@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Bricolage_Grotesque, DM_Sans, JetBrains_Mono } from "next/font/google";
+import { ClerkProvider } from "@clerk/nextjs";
 import "./globals.css";
 
 const bricolage = Bricolage_Grotesque({
@@ -23,13 +24,13 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Loopa — Ship work that actually gets done.",
+  title: "Sketio — Real-Time AI Collaborative Whiteboard",
   description:
-    "A loud, playful collaborative workspace & whiteboard. Draw, collaborate, and chat in real-time with your team in Loopa.",
-  keywords: ["collaborative drawing", "memphis design", "whiteboard", "real-time canvas", "team collaboration"],
+    "Sketio is an ultra-fast, intelligent collaborative whiteboard with AI diagram generation, infinite canvas, and live teamwork.",
+  keywords: ["Sketio", "collaborative whiteboard", "AI diagram generator", "real-time canvas", "team visual workspace"],
   openGraph: {
-    title: "Loopa — Ship work that actually gets done.",
-    description: "Real-time collaborative drawing and chat. Create rooms, draw together, share ideas instantly.",
+    title: "Sketio — Real-Time AI Collaborative Whiteboard",
+    description: "Draw, design architecture diagrams with AI, collaborate in real-time with Sketio.",
     type: "website",
   },
 };
@@ -39,7 +40,13 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  return (
+  const publishableKey = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
+  const isKeyConfigured =
+    publishableKey &&
+    !publishableKey.includes("placeholder") &&
+    publishableKey.startsWith("pk_");
+
+  const bodyContent = (
     <html lang="en" className="dark" suppressHydrationWarning>
       <body
         suppressHydrationWarning
@@ -49,4 +56,20 @@ export default function RootLayout({
       </body>
     </html>
   );
+
+  if (isKeyConfigured) {
+    return (
+      <ClerkProvider
+        publishableKey={publishableKey}
+        signInUrl="/sign-in"
+        signUpUrl="/sign-up"
+        signInFallbackRedirectUrl="/dashboard"
+        signUpFallbackRedirectUrl="/dashboard"
+      >
+        {bodyContent}
+      </ClerkProvider>
+    );
+  }
+
+  return bodyContent;
 }

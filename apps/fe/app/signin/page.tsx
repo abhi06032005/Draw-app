@@ -9,12 +9,17 @@ import Link from "next/link";
 import { Pencil, ArrowRight, Lock, Sparkles, CheckCircle2, ShieldCheck } from "lucide-react";
 
 function SigninContent() {
+  const router = useRouter();
+
+  React.useEffect(() => {
+    router.replace("/sign-in");
+  }, [router]);
+
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [clicked, setClicked] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
-  const router = useRouter();
   const searchParams = useSearchParams();
   const success = searchParams.get("success");
 
@@ -70,7 +75,7 @@ function SigninContent() {
             <Pencil size={20} strokeWidth={2.5} className="text-[#17140d]" />
           </div>
           <span className="font-display font-extrabold text-2xl tracking-tight text-[#17140d]">
-            Sketchflow
+            Sketio
           </span>
         </Link>
 

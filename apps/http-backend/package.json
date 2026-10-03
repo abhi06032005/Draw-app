@@ -11,6 +11,7 @@
         "dev": "pnpm run build && pnpm run start"
     },
     "dependencies": {
+        "@clerk/backend": "^3.22.0",
         "@repo/common": "workspace:*",
         "@repo/common-backend": "workspace:*",
         "@repo/db": "workspace:*",

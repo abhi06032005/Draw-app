@@ -19,24 +19,18 @@ export const CreateRoomSchema = z.object({
     .regex(/^[a-zA-Z0-9_-]+$/, "Room name can only contain letters, numbers, hyphens, and underscores"),
 });
 
-export const WsJoinRoomSchema = z.object({
-  type: z.literal("join_room"),
-  roomId: z.union([z.number(), z.string()]),
+
+export const UpdateSceneSchema = z.object({
+  elements: z.array(z.any()).optional(),
+  appState: z.record(z.string(), z.any()).optional(),
+  files: z.record(z.string(), z.any()).optional(),
 });
 
-export const WsLeaveRoomSchema = z.object({
-  type: z.literal("leave_room"),
-  roomId: z.union([z.number(), z.string()]),
+export const AddMemberSchema = z.object({
+  email: z.string().email("Invalid email format"),
+  role: z.enum(["ADMIN", "EDITOR", "VIEWER"]).default("EDITOR"),
 });
 
-export const WsChatSchema = z.object({
-  type: z.literal("chat"),
-  roomId: z.union([z.number(), z.string()]),
-  message: z.string().min(1).max(2000, "Chat message exceeds 2000 characters"),
-});
-
-export const WsShapeSchema = z.object({
-  type: z.literal("shape"),
-  roomId: z.union([z.number(), z.string()]),
-  message: z.string().min(1).max(100000, "Shape payload size limit exceeded"),
+export const UpdateMemberRoleSchema = z.object({
+  role: z.enum(["ADMIN", "EDITOR", "VIEWER"]),
 });

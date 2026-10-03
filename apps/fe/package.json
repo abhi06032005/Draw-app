@@ -9,21 +9,16 @@
         "lint": "eslint"
     },
     "dependencies": {
-        "@types/three": "^0.180.0",
+        "@clerk/nextjs": "^7.9.10",
+        "@excalidraw/excalidraw": "0.18.1",
         "axios": "^1.12.2",
-        "class-variance-authority": "^0.7.1",
         "clsx": "^2.1.1",
         "lucide-react": "^0.544.0",
         "next": "16.1.0",
-        "next-auth": "^4.24.11",
-        "ogl": "^1.0.11",
-        "postprocessing": "^6.37.8",
         "react": "19.2.3",
         "react-dom": "19.2.3",
-        "react-icons": "^5.5.0",
-        "react-loading-indicators": "^1.0.1",
-        "tailwind-merge": "^3.3.1",
-        "three": "^0.180.0"
+        "socket.io-client": "^4.8.1",
+        "tailwind-merge": "^3.3.1"
     },
     "devDependencies": {
         "@eslint/eslintrc": "^3",

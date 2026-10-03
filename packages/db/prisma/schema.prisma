@@ -8,24 +8,47 @@ datasource db {
 }
 
 model User {
-  id       String  @id @default(uuid())
-  email    String  @unique
-  name     String?
-  password String
-  photo    String?
-  room     Room[]
-  chats    Chat[]
-  shapes   Shapes[]
+  id          String        @id @default(uuid())
+  email       String        @unique
+  name        String?
+  password    String
+  photo       String?
+  room        Room[]        @relation("AdminRooms")
+  memberships BoardMember[]
+  chats       Chat[]
 }
 
 model Room {
-  id       Int       @id @default(autoincrement())
-  slug     String    @unique
-  createAt DateTime  @default(now())
-  adminId  String
-  admin    User      @relation(fields: [adminId], references: [id])
-  chats    Chat[]
-  shapes   Shapes[]
+  id        Int           @id @default(autoincrement())
+  slug      String        @unique
+  title     String?
+  elements  Json?
+  appState  Json?
+  files     Json?
+  createAt  DateTime      @default(now())
+  updatedAt DateTime      @default(now()) @updatedAt
+  adminId   String
+  admin     User          @relation("AdminRooms", fields: [adminId], references: [id])
+  members   BoardMember[]
+  chats     Chat[]
+}
+
+model BoardMember {
+  id     Int    @id @default(autoincrement())
+  roomId Int
+  userId String
+  role   String @default("EDITOR")
+  room   Room   @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([roomId, userId])
+}
+
+model FileAsset {
+  id        String   @id
+  mimeType  String
+  data      String
+  createdAt DateTime @default(now())
 }
 
 model Chat {
@@ -34,16 +57,6 @@ model Chat {
   type    String
   message String
   userId  String?
-  room    Room    @relation(fields: [roomId], references: [id])
+  room    Room    @relation(fields: [roomId], references: [id], onDelete: Cascade)
   user    User?   @relation(fields: [userId], references: [id])
-}
-
-model Shapes {
-  id      Int    @id @default(autoincrement())
-  roomId  Int
-  type    String
-  message String
-  userId  String
-  room    Room   @relation(fields: [roomId], references: [id])
-  user    User   @relation(fields: [userId], references: [id])
 }

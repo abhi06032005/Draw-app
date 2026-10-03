@@ -1,301 +1,150 @@
 import "dotenv/config";
-import { WebSocket, WebSocketServer } from "ws";
-import jwt, { JwtPayload } from "jsonwebtoken";
-import { JWT_SECRET } from "@repo/common-backend/config";
-import { prismaClient } from "@repo/db/client";
-import {
-  WsJoinRoomSchema,
-  WsLeaveRoomSchema,
-  WsChatSchema,
-  WsShapeSchema,
-} from "@repo/common/types";
+import express from "express";
+import http from "http";
+import { Server as SocketIO } from "socket.io";
+import cors from "cors";
 
-const port = process.env.PORT || 8080;
+type UserToFollow = {
+  socketId: string;
+  username: string;
+};
 
-// Maximum allowed payload size (256 KB)
-const MAX_PAYLOAD_BYTES = 256 * 1024;
+type OnUserFollowedPayload = {
+  userToFollow: UserToFollow;
+  action: "FOLLOW" | "UNFOLLOW";
+};
 
-const wss = new WebSocketServer({
-  port: Number(port),
-  maxPayload: MAX_PAYLOAD_BYTES,
+const app = express();
+const port = Number(process.env.PORT || 3002);
+
+app.use(cors());
+app.use(express.json());
+
+app.get("/", (req, res) => {
+  res.send("Excalidraw collaboration server is up :)");
 });
 
-console.log(`Secured WebSocket server started on port ${port}`);
+app.get("/health", (req, res) => {
+  res.json({ status: "ok", timestamp: new Date().toISOString() });
+});
 
-interface User {
-  ws: WebSocket;
-  rooms: string[];
-  userId: string;
-  userName?: string;
-  msgCount: number;
-  lastMsgReset: number;
-}
+const server = http.createServer(app);
 
-const users: User[] = [];
+const io = new SocketIO(server, {
+  transports: ["websocket", "polling"],
+  cors: {
+    allowedHeaders: ["Content-Type", "Authorization"],
+    origin: process.env.CORS_ORIGIN || "*",
+    credentials: true,
+  },
+  allowEIO3: true,
+  maxHttpBufferSize: 1e7, // 10MB
+});
 
-// Per-IP Connection Limit tracking
-const ipConnections = new Map<string, number>();
-const MAX_CONNS_PER_IP = 10;
+io.on("connection", (socket) => {
+  console.log(`[Socket.io] Connection established: ${socket.id}`);
 
-function checkUser(token: string): string | null {
-  try {
-    const decoded = jwt.verify(token, JWT_SECRET);
-    if (typeof decoded === "object" && decoded !== null && "userId" in decoded) {
-      return (decoded as JwtPayload).userId!;
-    }
-    return null;
-  } catch (e) {
-    return null;
-  }
-}
+  // Handshake: Notify client to initialize room
+  io.to(socket.id).emit("init-room");
 
-wss.on("connection", async function connection(ws, request) {
-  const ip = request.socket.remoteAddress || "unknown";
+  // Join room
+  socket.on("join-room", async (roomID: string) => {
+    if (!roomID) return;
+    if (socket.rooms.has(roomID)) return;
+    console.log(`[Socket.io] Client ${socket.id} joined room: ${roomID}`);
+    await socket.join(roomID);
+    const sockets = await io.in(roomID).fetchSockets();
 
-  // Enforce Connection Limit per IP
-  const currentConns = ipConnections.get(ip) || 0;
-  if (currentConns >= MAX_CONNS_PER_IP) {
-    console.warn(`[SECURITY] IP ${ip} exceeded maximum connection limit.`);
-    ws.close(1008, "Connection limit exceeded");
-    return;
-  }
-  ipConnections.set(ip, currentConns + 1);
-
-  const url = request.url;
-  if (!url) {
-    ws.close(1008, "Missing request URL");
-    return;
-  }
-
-  const queryParams = new URLSearchParams(url.split("?")[1]);
-  const token = queryParams.get("token") || "";
-
-  const userId = checkUser(token);
-  if (!userId) {
-    ws.close(1008, "Unauthorized: Invalid or expired token");
-    return;
-  }
-
-  let userName = "Collaborator";
-  try {
-    const dbUser = await prismaClient.user.findUnique({
-      where: { id: userId },
-      select: { name: true },
-    });
-    if (dbUser?.name) {
-      userName = dbUser.name;
-    }
-  } catch (e) {
-    console.error("[WS] Failed to fetch user name:", e);
-  }
-
-  const currentUserObj: User = {
-    userId,
-    userName,
-    rooms: [],
-    ws: ws as unknown as WebSocket,
-    msgCount: 0,
-    lastMsgReset: Date.now(),
-  };
-
-  users.push(currentUserObj);
-
-  // Handle Disconnect & Cleanup
-  ws.on("close", () => {
-    const index = users.findIndex((u) => u.ws === ws);
-    if (index !== -1) {
-      users.splice(index, 1);
-    }
-    const count = ipConnections.get(ip) || 1;
-    if (count <= 1) {
-      ipConnections.delete(ip);
+    if (sockets.length <= 1) {
+      io.to(socket.id).emit("first-in-room");
     } else {
-      ipConnections.set(ip, count - 1);
+      socket.broadcast.to(roomID).emit("new-user", socket.id);
+    }
+
+    io.in(roomID).emit(
+      "room-user-change",
+      sockets.map((s) => s.id)
+    );
+  });
+
+  // Server broadcast (reliable updates)
+  socket.on(
+    "server-broadcast",
+    (roomID: string, encryptedData: ArrayBuffer, iv: Uint8Array) => {
+      socket.broadcast.to(roomID).emit("client-broadcast", encryptedData, iv);
+    }
+  );
+
+  // Server volatile broadcast (high-frequency pointer/cursor/idle updates)
+  socket.on(
+    "server-volatile-broadcast",
+    (roomID: string, encryptedData: ArrayBuffer, iv: Uint8Array) => {
+      socket.volatile.broadcast
+        .to(roomID)
+        .emit("client-broadcast", encryptedData, iv);
+    }
+  );
+
+  // User follow behavior
+  socket.on("user-follow", async (payload: OnUserFollowedPayload) => {
+    if (!payload?.userToFollow?.socketId) return;
+    const roomID = `follow@${payload.userToFollow.socketId}`;
+
+    switch (payload.action) {
+      case "FOLLOW": {
+        await socket.join(roomID);
+        const sockets = await io.in(roomID).fetchSockets();
+        const followedBy = sockets.map((s) => s.id);
+        io.to(payload.userToFollow.socketId).emit(
+          "user-follow-room-change",
+          followedBy
+        );
+        break;
+      }
+      case "UNFOLLOW": {
+        await socket.leave(roomID);
+        const sockets = await io.in(roomID).fetchSockets();
+        const followedBy = sockets.map((s) => s.id);
+        io.to(payload.userToFollow.socketId).emit(
+          "user-follow-room-change",
+          followedBy
+        );
+        break;
+      }
     }
   });
 
-  ws.on("error", (err) => {
-    console.error(`[WS ERROR] User ${userId}:`, err);
-  });
-
-  ws.on("message", async function message(data, isBinary) {
-    // Reject binary messages
-    if (isBinary) {
-      ws.send(JSON.stringify({ error: "Binary messages not allowed" }));
-      return;
-    }
-
-    // Rate Limiting per Socket Connection: Max 60 messages per 10 seconds
-    const now = Date.now();
-    if (now - currentUserObj.lastMsgReset > 10000) {
-      currentUserObj.msgCount = 0;
-      currentUserObj.lastMsgReset = now;
-    }
-    currentUserObj.msgCount += 1;
-
-    if (currentUserObj.msgCount > 60) {
-      console.warn(`[SECURITY] User ${userId} rate limited on WebSocket.`);
-      ws.send(
-        JSON.stringify({
-          error: "Rate limit exceeded. Please slow down.",
-        })
+  // Client disconnecting
+  socket.on("disconnecting", async () => {
+    console.log(`[Socket.io] Client ${socket.id} disconnecting`);
+    for (const roomID of Array.from(socket.rooms)) {
+      if (roomID === socket.id) continue;
+      const otherClients = (await io.in(roomID).fetchSockets()).filter(
+        (s) => s.id !== socket.id
       );
-      return;
-    }
 
-    let parsedRaw: any;
-    try {
-      parsedRaw = JSON.parse(data.toString());
-    } catch (e) {
-      ws.send(JSON.stringify({ error: "Invalid JSON format" }));
-      return;
-    }
+      const isFollowRoom = roomID.startsWith("follow@");
 
-    if (!parsedRaw || typeof parsedRaw !== "object" || !parsedRaw.type) {
-      ws.send(JSON.stringify({ error: "Missing event type" }));
-      return;
-    }
-
-    const roomIdStr = String(parsedRaw.roomId);
-    const roomIdNum = Number(parsedRaw.roomId);
-
-    if (isNaN(roomIdNum)) {
-      ws.send(JSON.stringify({ error: "Invalid roomId" }));
-      return;
-    }
-
-    // 1. Join Room
-    if (parsedRaw.type === "join_room") {
-      const validate = WsJoinRoomSchema.safeParse(parsedRaw);
-      if (!validate.success) {
-        ws.send(JSON.stringify({ error: "Invalid join_room schema" }));
-        return;
-      }
-      if (!currentUserObj.rooms.includes(roomIdStr)) {
-        // Enforce max 20 active rooms per connection
-        if (currentUserObj.rooms.length >= 20) {
-          ws.send(JSON.stringify({ error: "Maximum room subscriptions reached" }));
-          return;
-        }
-        currentUserObj.rooms.push(roomIdStr);
-      }
-      return;
-    }
-
-    // 2. Leave Room
-    if (parsedRaw.type === "leave_room") {
-      const validate = WsLeaveRoomSchema.safeParse(parsedRaw);
-      if (!validate.success) {
-        ws.send(JSON.stringify({ error: "Invalid leave_room schema" }));
-        return;
-      }
-      currentUserObj.rooms = currentUserObj.rooms.filter((r) => r !== roomIdStr);
-      return;
-    }
-
-    // 3. Chat Message
-    if (parsedRaw.type === "chat") {
-      const validate = WsChatSchema.safeParse(parsedRaw);
-      if (!validate.success) {
-        ws.send(
-          JSON.stringify({
-            error: "Invalid chat payload",
-            details: validate.error.flatten(),
-          })
+      if (!isFollowRoom && otherClients.length > 0) {
+        socket.broadcast.to(roomID).emit(
+          "room-user-change",
+          otherClients.map((s) => s.id)
         );
-        return;
       }
 
-      // Verify User is subscribed to the target room
-      if (!currentUserObj.rooms.includes(roomIdStr)) {
-        ws.send(JSON.stringify({ error: "Unauthorized: You must join the room before chatting" }));
-        return;
+      if (isFollowRoom && otherClients.length === 0) {
+        const socketId = roomID.replace("follow@", "");
+        io.to(socketId).emit("broadcast-unfollow");
       }
-
-      const messageText = validate.data.message;
-
-      // Persist to DB securely
-      try {
-        await prismaClient.chat.create({
-          data: {
-            roomId: roomIdNum,
-            type: "chat",
-            message: messageText,
-            userId: currentUserObj.userId,
-          },
-        });
-      } catch (e) {
-        console.error("[DB ERROR] Failed to store chat:", e);
-      }
-
-      // Broadcast to room subscribers
-      users.forEach((u) => {
-        if (u.rooms.includes(roomIdStr) && u.ws.readyState === WebSocket.OPEN) {
-          u.ws.send(
-            JSON.stringify({
-              type: "chat",
-              roomId: roomIdStr,
-              message: messageText,
-              userId: currentUserObj.userId,
-              userName: currentUserObj.userName,
-            })
-          );
-        }
-      });
-      return;
     }
+  });
 
-    // 4. Shape / Canvas Event
-    if (parsedRaw.type === "shape") {
-      const validate = WsShapeSchema.safeParse(parsedRaw);
-      if (!validate.success) {
-        ws.send(
-          JSON.stringify({
-            error: "Invalid shape payload",
-            details: validate.error.flatten(),
-          })
-        );
-        return;
-      }
-
-      // Verify User is subscribed to the target room
-      if (!currentUserObj.rooms.includes(roomIdStr)) {
-        ws.send(JSON.stringify({ error: "Unauthorized: You must join the room before drawing" }));
-        return;
-      }
-
-      const shapeMessage = validate.data.message;
-
-      // Persist to DB securely
-      try {
-        await prismaClient.shapes.create({
-          data: {
-            roomId: roomIdNum,
-            type: "shape",
-            message: shapeMessage,
-            userId: currentUserObj.userId,
-          },
-        });
-      } catch (e) {
-        console.error("[DB ERROR] Failed to store shape:", e);
-      }
-
-      // Broadcast to room subscribers
-      users.forEach((u) => {
-        if (u.rooms.includes(roomIdStr) && u.ws.readyState === WebSocket.OPEN) {
-          u.ws.send(
-            JSON.stringify({
-              type: "shape",
-              roomId: roomIdStr,
-              message: shapeMessage,
-            })
-          );
-        }
-      });
-      return;
-    }
-
-    ws.send(JSON.stringify({ error: "Unknown event type" }));
+  // Disconnect cleanup
+  socket.on("disconnect", () => {
+    socket.removeAllListeners();
   });
 });
 
+server.listen(port, "0.0.0.0", () => {
+  console.log(`Excalidraw Room collaboration server running on port ${port}`);
+});

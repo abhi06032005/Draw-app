@@ -21,7 +21,7 @@ export default function Loader() {
       {/* Spinner */}
       <div className="spinner mb-5" />
 
-      <div className="text-white/50 text-sm font-semibold">Loading Sketchflow…</div>
+      <div className="text-white/50 text-sm font-semibold">Loading Sketio…</div>
       <div className="flex items-center gap-1.5 mt-3">
         {[0, 1, 2].map((i) => (
           <div
