@@ -6,15 +6,10 @@ import axios from "axios";
 import { useRouter } from "next/navigation";
 import Loader from "@/components/Loader";
 import Link from "next/link";
-import { Pencil, ArrowRight, ShieldCheck, Sparkles } from "lucide-react";
+import { Pencil, ArrowRight, Sparkles } from "lucide-react";
 
 export default function Signup() {
   const router = useRouter();
-
-  React.useEffect(() => {
-    router.replace("/sign-up");
-  }, [router]);
-
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
@@ -35,22 +30,23 @@ export default function Signup() {
     setClicked(true);
     try {
       const response = await axios.post(`${BACKEND_URL}/signup`, {
-        username,
-        password,
-        name,
+        username: username.trim(),
+        password: password.trim(),
+        name: name.trim(),
       });
       if (response.status === 201) {
         router.push("/signin?success=1");
       }
-    } catch (e) {
+    } catch (e: any) {
       setClicked(false);
-      setError("Signup failed. Email may already be in use.");
+      setError(
+        e.response?.data?.message || "Signup failed. Email may already be in use."
+      );
     }
   };
 
   return (
     <div className="min-h-screen bg-[#f5efe2] text-[#17140d] flex items-center justify-center p-6 relative overflow-hidden select-none">
-      
       {/* Background Animated Memphis Confetti */}
       <div className="pointer-events-none absolute inset-0 overflow-hidden z-0">
         <div className="absolute top-[8%] right-[6%] anim-drift">
@@ -71,7 +67,6 @@ export default function Signup() {
       </div>
 
       <div className="w-full max-w-md relative z-10">
-        
         {/* Brand Logo */}
         <Link href="/" className="flex items-center justify-center gap-3 mb-8">
           <div className="w-10 h-10 bg-[#ffc531] rounded-xl border-[3px] border-[#17140d] memphis-shadow-sm flex items-center justify-center">
@@ -174,7 +169,6 @@ export default function Signup() {
             <Sparkles size={14} className="text-[#ffc531]" /> Instant Access · Free Forever
           </div>
         </div>
-
       </div>
 
       {clicked && <Loader />}

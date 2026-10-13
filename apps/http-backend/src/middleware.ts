@@ -1,18 +1,11 @@
 import { NextFunction, Request, Response } from "express";
 import jwt from "jsonwebtoken";
-import { verifyToken } from "@clerk/backend";
 import { JWT_SECRET } from "@repo/common-backend/config";
 import { prismaClient } from "@repo/db/client";
 
 export interface AuthenticatedRequest extends Request {
   userId?: string;
 }
-
-const clerkSecretKey = process.env.CLERK_SECRET_KEY;
-const isClerkConfigured =
-  clerkSecretKey &&
-  !clerkSecretKey.includes("placeholder") &&
-  clerkSecretKey.startsWith("sk_");
 
 export async function middleware(
   req: AuthenticatedRequest,
@@ -34,60 +27,58 @@ export async function middleware(
     return res.status(401).json({ message: "Token missing" });
   }
 
-  // 1. If Clerk secret key is configured, attempt Clerk verification
-  if (isClerkConfigured && clerkSecretKey) {
+  // 1. Try native JWT verification with JWT_SECRET
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET) as { userId?: string; id?: string; sub?: string };
+    const id = decoded.userId || decoded.id || decoded.sub;
+    if (id) {
+      req.userId = id;
+      return next();
+    }
+  } catch {
+    // Continue to fallback check
+  }
+
+  // 2. NextAuth / JWT secret fallback (NEXTAUTH_SECRET or secret check)
+  const nextAuthSecret = process.env.NEXTAUTH_SECRET;
+  if (nextAuthSecret && nextAuthSecret !== JWT_SECRET) {
     try {
-      const verified = await verifyToken(token, { secretKey: clerkSecretKey });
-      if (verified && verified.sub) {
-        req.userId = verified.sub;
-        await ensureUserRecord(verified.sub, verified);
+      const decoded = jwt.verify(token, nextAuthSecret) as { userId?: string; id?: string; sub?: string };
+      const id = decoded.userId || decoded.id || decoded.sub;
+      if (id) {
+        req.userId = id;
         return next();
       }
     } catch {
-      // Continue to fallback
+      // Continue
     }
   }
 
-  // 2. Try native JWT verification
+  // 3. Fallback: Decode token to retrieve user ID if valid structure
   try {
-    const decoded = jwt.verify(token, JWT_SECRET) as { userId: string };
-    req.userId = decoded.userId;
-    return next();
-  } catch (err: any) {
-    // 3. Fallback: Check if token is a Clerk JWT during setup/dev
-    const decodedAny: any = jwt.decode(token);
-    if (decodedAny && decodedAny.sub) {
-      req.userId = decodedAny.sub;
-      await ensureUserRecord(decodedAny.sub, decodedAny);
+    const decodedAny = jwt.decode(token) as { userId?: string; id?: string; sub?: string; email?: string } | null;
+    if (decodedAny && (decodedAny.userId || decodedAny.id || decodedAny.sub)) {
+      const id = decodedAny.userId || decodedAny.id || decodedAny.sub!;
+      req.userId = id;
+
+      // Ensure user exists in database if email exists
+      if (decodedAny.email) {
+        await prismaClient.user.upsert({
+          where: { id: id },
+          create: {
+            id: id,
+            email: decodedAny.email,
+            name: decodedAny.email.split("@")[0] || "User",
+            password: "OAUTH_EXTERNAL_USER",
+          },
+          update: {},
+        }).catch(() => {});
+      }
       return next();
     }
-
-    return res.status(403).json({ message: "Unauthorized access" });
-  }
-}
-
-/**
- * Ensures a Clerk user has a corresponding row in PostgreSQL User table
- * so all relations (Room admin, BoardMember, Chat) resolve properly.
- */
-async function ensureUserRecord(userId: string, claims: any) {
-  try {
-    const email = claims.email || claims.email_address || `${userId}@clerk.user`;
-    const name = claims.name || claims.first_name || "Clerk User";
-
-    await prismaClient.user.upsert({
-      where: { id: userId },
-      create: {
-        id: userId,
-        email: email,
-        name: name,
-        password: "CLERK_MANAGED_AUTH",
-      },
-      update: {
-        name: name,
-      },
-    });
   } catch {
-    // Ignore upsert errors if email conflict or already exists
+    // Decoding failed
   }
+
+  return res.status(403).json({ message: "Unauthorized access" });
 }

@@ -19,6 +19,7 @@ import {
   Palette, 
   ArrowRight 
 } from "lucide-react";
+import { getAuthToken, removeLocalAuthToken } from "@/lib/auth";
 
 type User = {
   id: number;
@@ -84,10 +85,10 @@ export default function Dashboard() {
   const [search, setSearch] = useState("");
 
   useEffect(() => {
-    const token = localStorage.getItem("Authorization");
-    if (!token) { router.push("/signin"); return; }
-
     async function fetchData() {
+      const token = await getAuthToken();
+      if (!token) { router.push("/signin"); return; }
+
       try {
         const userRes = await axios.get(`${BACKEND_URL}/user`, {
           headers: { Authorization: `Bearer ${token}` },
@@ -114,7 +115,7 @@ export default function Dashboard() {
   }, [router]);
 
   const handleSignOut = () => {
-    localStorage.removeItem("Authorization");
+    removeLocalAuthToken();
     router.push("/");
   };
 

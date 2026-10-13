@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import axios from "axios";
 import { BACKEND_URL } from "@/config";
 import Link from "next/link";
+import { getAuthToken } from "@/lib/auth";
 import { Pencil, Plus, ArrowLeft, ArrowRight, Sparkles } from "lucide-react";
 
 export default function CreateRoom() {
@@ -14,10 +15,11 @@ export default function CreateRoom() {
   const router = useRouter();
 
   useEffect(() => {
-    const token = localStorage.getItem("Authorization");
-    if (!token) {
-      router.push("/signin");
-    }
+    getAuthToken().then((token) => {
+      if (!token) {
+        router.push("/signin");
+      }
+    });
   }, [router]);
 
   const handleCreate = async () => {
@@ -33,7 +35,7 @@ export default function CreateRoom() {
     setError("");
     setLoading(true);
 
-    const token = localStorage.getItem("Authorization");
+    const token = await getAuthToken();
     try {
       const response = await axios.post(
         `${BACKEND_URL}/room`,

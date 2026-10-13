@@ -1,10 +1,14 @@
 @import "tailwindcss";
 @import "tw-animate-css";
+@import url("https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700..800&family=DM+Sans:ital,opsz,wght@0,9..40,400..700;1,9..40,400..700&family=JetBrains+Mono:wght@400..700&display=swap");
 
 @custom-variant dark (&:is(.dark *));
 
-/* ─── Memphis Color Tokens ─────────────────────────────────────────── */
+/* ─── Typography & Memphis Color Tokens ─────────────────────────────────────────── */
 :root {
+  --font-bricolage: "Bricolage Grotesque", system-ui, -apple-system, sans-serif;
+  --font-dm-sans: "DM Sans", system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
   --memphis-cream: #f5efe2;
   --memphis-ink: #17140d;
   --memphis-teal: #12b3a4;

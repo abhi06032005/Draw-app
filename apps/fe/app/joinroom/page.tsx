@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { getAuthToken } from "@/lib/auth";
 import { Pencil, LogIn, ArrowLeft, ArrowRight, Sparkles, Lightbulb } from "lucide-react";
 
 export default function Joinroom() {
@@ -12,10 +13,11 @@ export default function Joinroom() {
   const router = useRouter();
 
   useEffect(() => {
-    const token = localStorage.getItem("Authorization");
-    if (!token) {
-      router.push("/signin");
-    }
+    getAuthToken().then((token) => {
+      if (!token) {
+        router.push("/signin");
+      }
+    });
   }, [router]);
 
   const handleJoin = () => {

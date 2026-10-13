@@ -9,12 +9,12 @@
         "lint": "eslint"
     },
     "dependencies": {
-        "@clerk/nextjs": "^7.9.10",
         "@excalidraw/excalidraw": "0.18.1",
         "axios": "^1.12.2",
         "clsx": "^2.1.1",
         "lucide-react": "^0.544.0",
         "next": "16.1.0",
+        "next-auth": "^4.24.15",
         "react": "19.2.3",
         "react-dom": "19.2.3",
         "socket.io-client": "^4.8.1",
