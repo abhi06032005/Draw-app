@@ -125,7 +125,7 @@ export default function Home() {
               Sign in
             </Link>
             <Link
-              href="/signup"
+              href="/signin"
               className="memphis-btn bg-[#12b3a4] text-white font-bold text-sm px-5 py-2.5 rounded-full flex items-center gap-1.5"
             >
               Start sketching free
@@ -168,7 +168,7 @@ export default function Home() {
             {/* Dual CTA Row */}
             <div className="flex flex-wrap items-center gap-4 pt-2">
               <Link
-                href="/signup"
+                href="/signin"
                 className="memphis-btn bg-[#ff5b57] text-white font-black text-base px-8 py-4 rounded-full flex items-center gap-2.5 text-lg"
               >
                 Create room now <ArrowRight size={20} strokeWidth={3} />

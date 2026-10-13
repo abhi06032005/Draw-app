@@ -12,6 +12,7 @@
         "@excalidraw/excalidraw": "0.18.1",
         "axios": "^1.12.2",
         "clsx": "^2.1.1",
+        "jsonwebtoken": "^9.0.2",
         "lucide-react": "^0.544.0",
         "next": "16.1.0",
         "next-auth": "^4.24.15",
@@ -23,6 +24,7 @@
     "devDependencies": {
         "@eslint/eslintrc": "^3",
         "@tailwindcss/postcss": "^4.1.13",
+        "@types/jsonwebtoken": "^9.0.10",
         "@types/node": "^20",
         "@types/react": "^19.1.14",
         "@types/react-dom": "^19.1.9",
