@@ -77,7 +77,7 @@ export function WhiteboardPage({ slug }: WhiteboardPageProps) {
     async function loadBoard() {
       const token = await getAuthToken();
       if (!token) {
-        router.push("/sign-in");
+        router.push("/signin");
         return;
       }
       try {

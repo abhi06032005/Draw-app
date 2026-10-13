@@ -42,15 +42,17 @@ export default function CreateRoom() {
         { name: trimmedId },
         { headers: { authorization: `Bearer ${token}` } }
       );
-      if (response.status === 201) {
-        router.push("/joinroom");
+      if (response.status === 200 || response.status === 201) {
+        const slug = response.data?.roomId || trimmedId;
+        router.push(`/joinroom/room/${slug}`);
       }
     } catch (e: any) {
       setLoading(false);
       if (e.response?.status === 409) {
         setError("A room with this name already exists. Try a different name.");
       } else {
-        setError("Failed to create room. Please try again.");
+        const backendMessage = e.response?.data?.message || e.message;
+        setError(backendMessage ? `Error: ${backendMessage}` : "Failed to create room. Please try again.");
       }
     }
   };

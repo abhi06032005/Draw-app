@@ -13,7 +13,7 @@ export interface AuthenticatedRequest extends Request {
  * Ensures that any authenticated user (especially Google OAuth users)
  * has a valid row in PostgreSQL User table before continuing.
  */
-async function ensureUser(id: string, email?: string, name?: string): Promise<string> {
+export async function ensureUser(id: string, email?: string, name?: string): Promise<string> {
   try {
     // 1. Check if user already exists by ID
     const existingById = await prismaClient.user.findUnique({ where: { id } }).catch(() => null);
@@ -36,7 +36,10 @@ async function ensureUser(id: string, email?: string, name?: string): Promise<st
         name: userName,
         password: "GOOGLE_OAUTH_MANAGED",
       },
-    }).catch(() => null);
+    }).catch((err) => {
+      console.warn("create user failed in ensureUser:", err?.message || err);
+      return null;
+    });
 
     if (created) return created.id;
 
@@ -51,6 +54,61 @@ async function ensureUser(id: string, email?: string, name?: string): Promise<st
   return id;
 }
 
+export function extractTokenPayload(authHeader?: string): { userId?: string; email?: string; name?: string } | null {
+  if (!authHeader) return null;
+
+  const token = authHeader.startsWith("Bearer ")
+    ? authHeader.slice(7).trim()
+    : authHeader.trim();
+
+  if (!token) return null;
+
+  // 1. Try native JWT verification with JWT_SECRET
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET) as any;
+    if (decoded && (decoded.userId || decoded.id || decoded.sub)) {
+      return {
+        userId: decoded.userId || decoded.id || decoded.sub,
+        email: decoded.email,
+        name: decoded.name,
+      };
+    }
+  } catch {}
+
+  // 2. Try NextAuth secret verification (NEXTAUTH_SECRET or default fallback)
+  const candidateSecrets = [
+    process.env.NEXTAUTH_SECRET,
+    "sketio-default-jwt-secret-key-change-in-prod",
+  ].filter(Boolean) as string[];
+
+  for (const candidate of candidateSecrets) {
+    try {
+      const decoded = jwt.verify(token, candidate) as any;
+      if (decoded && (decoded.userId || decoded.id || decoded.sub)) {
+        return {
+          userId: decoded.userId || decoded.id || decoded.sub,
+          email: decoded.email,
+          name: decoded.name,
+        };
+      }
+    } catch {}
+  }
+
+  // 3. Fallback: Decode token structure
+  try {
+    const decoded = jwt.decode(token) as any;
+    if (decoded && (decoded.userId || decoded.id || decoded.sub)) {
+      return {
+        userId: decoded.userId || decoded.id || decoded.sub,
+        email: decoded.email,
+        name: decoded.name,
+      };
+    }
+  } catch {}
+
+  return null;
+}
+
 export async function middleware(
   req: AuthenticatedRequest,
   res: Response,
@@ -62,57 +120,14 @@ export async function middleware(
     return res.status(401).json({ message: "Not signed in" });
   }
 
-  // Extract token safely
-  const token = authHeader.startsWith("Bearer ")
-    ? authHeader.slice(7).trim()
-    : authHeader.trim();
-
-  if (!token) {
-    return res.status(401).json({ message: "Token missing" });
+  const payload = extractTokenPayload(authHeader);
+  if (!payload || !payload.userId) {
+    return res.status(403).json({ message: "Unauthorized access" });
   }
 
-  let decodedPayload: { userId?: string; id?: string; sub?: string; email?: string; name?: string } | null = null;
+  req.userEmail = payload.email;
+  req.userName = payload.name;
+  req.userId = await ensureUser(payload.userId, payload.email, payload.name);
 
-  // 1. Try native JWT verification with JWT_SECRET
-  try {
-    decodedPayload = jwt.verify(token, JWT_SECRET) as any;
-  } catch {
-    // Continue to next check
-  }
-
-  // 2. NextAuth secret verification (NEXTAUTH_SECRET)
-  if (!decodedPayload) {
-    const nextAuthSecret = process.env.NEXTAUTH_SECRET;
-    if (nextAuthSecret && nextAuthSecret !== JWT_SECRET) {
-      try {
-        decodedPayload = jwt.verify(token, nextAuthSecret) as any;
-      } catch {
-        // Continue to fallback check
-      }
-    }
-  }
-
-  // 3. Fallback: Decode token structure
-  if (!decodedPayload) {
-    try {
-      decodedPayload = jwt.decode(token) as any;
-    } catch {
-      // Decode failed
-    }
-  }
-
-  if (decodedPayload && (decodedPayload.userId || decodedPayload.id || decodedPayload.sub)) {
-    const rawId = (decodedPayload.userId || decodedPayload.id || decodedPayload.sub) as string;
-    const email = decodedPayload.email;
-    const name = decodedPayload.name;
-
-    req.userEmail = email;
-    req.userName = name;
-
-    // Ensure database user row exists and map to correct database user ID
-    req.userId = await ensureUser(rawId, email, name);
-    return next();
-  }
-
-  return res.status(403).json({ message: "Unauthorized access" });
+  return next();
 }

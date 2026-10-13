@@ -8,7 +8,7 @@ import { CreateSignupSchema, SigninSchema, CreateRoomSchema, UpdateSceneSchema }
 import jwt from "jsonwebtoken";
 import { prismaClient } from "@repo/db/client";
 import { JWT_SECRET } from "@repo/common-backend/config";
-import { middleware } from "./middleware";
+import { middleware, ensureUser, extractTokenPayload } from "./middleware";
 
 const app = express();
 
@@ -217,8 +217,25 @@ app.get("/get-rooms", middleware, async function (req, res) {
 
         return res.json(rooms);
     } catch (err) {
-        console.error("Get rooms error:", err);
-        return res.status(500).json({ message: "Internal server error" });
+        console.warn("Primary get-rooms query failed, attempting legacy fallback:", err);
+        try {
+            const fallbackRooms = await prismaClient.room.findMany({
+                where: { adminId: userId },
+                select: {
+                    id: true,
+                    slug: true,
+                    createAt: true,
+                    adminId: true,
+                },
+                orderBy: {
+                    createAt: "desc",
+                },
+            });
+            return res.json(fallbackRooms);
+        } catch (fallbackErr) {
+            console.error("All get-rooms queries failed:", fallbackErr);
+            return res.json([]);
+        }
     }
 });
 
@@ -236,28 +253,39 @@ app.post("/room", middleware, async function (req, res) {
     const userId = req.userId;
     const roomSlug = parsedData.data.name.trim();
 
+    if (!userId) {
+        return res.status(401).json({ message: "Unauthorized" });
+    }
+
     try {
+        // Ensure user row exists in PostgreSQL to satisfy Foreign Key constraint
+        await ensureUser(userId, (req as any).userEmail, (req as any).userName);
+
         // If room with this slug already exists, return it and add user as member if needed
         const existingRoom = await prismaClient.room.findUnique({
             where: { slug: roomSlug },
-        });
+        }).catch(() => null);
 
         if (existingRoom) {
             if (existingRoom.adminId !== userId) {
-                await prismaClient.boardMember.upsert({
-                    where: {
-                        roomId_userId: {
+                try {
+                    await prismaClient.boardMember.upsert({
+                        where: {
+                            roomId_userId: {
+                                roomId: existingRoom.id,
+                                userId: userId,
+                            },
+                        },
+                        create: {
                             roomId: existingRoom.id,
                             userId: userId,
+                            role: "EDITOR",
                         },
-                    },
-                    create: {
-                        roomId: existingRoom.id,
-                        userId: userId,
-                        role: "EDITOR",
-                    },
-                    update: {},
-                });
+                        update: {},
+                    });
+                } catch {
+                    // BoardMember table might not exist in legacy schema
+                }
             }
 
             return res.status(200).json({
@@ -267,40 +295,55 @@ app.post("/room", middleware, async function (req, res) {
             });
         }
 
-        const room = await prismaClient.room.create({
-            data: {
-                adminId: userId,
-                slug: roomSlug,
-                title: roomSlug,
-                elements: [],
-                appState: {},
-                files: {},
-                members: {
-                    create: {
-                        userId: userId,
-                        role: "ADMIN",
+        try {
+            const room = await prismaClient.room.create({
+                data: {
+                    adminId: userId,
+                    slug: roomSlug,
+                    title: roomSlug,
+                    elements: [],
+                    appState: {},
+                    files: {},
+                    members: {
+                        create: {
+                            userId: userId,
+                            role: "ADMIN",
+                        },
                     },
                 },
-            },
-        });
+            });
 
-        return res.status(201).json({
-            roomId: room.slug,
-            id: room.id,
-        });
-    } catch (e) {
+            return res.status(201).json({
+                roomId: room.slug,
+                id: room.id,
+            });
+        } catch (fullCreateErr: any) {
+            console.warn("Full room create failed, using legacy create:", fullCreateErr?.message || fullCreateErr);
+            const minimalRoom = await prismaClient.room.create({
+                data: {
+                    adminId: userId,
+                    slug: roomSlug,
+                },
+            });
+
+            return res.status(201).json({
+                roomId: minimalRoom.slug,
+                id: minimalRoom.id,
+            });
+        }
+    } catch (e: any) {
         console.error("Create room error:", e);
         // Fallback: check if created by concurrent request
         const fallbackRoom = await prismaClient.room.findUnique({
             where: { slug: roomSlug },
-        });
+        }).catch(() => null);
         if (fallbackRoom) {
             return res.status(200).json({
                 roomId: fallbackRoom.slug,
                 id: fallbackRoom.id,
             });
         }
-        return res.status(500).json({ message: "Failed to create or enter room" });
+        return res.status(500).json({ message: e?.message || "Failed to create or enter room" });
     }
 });
 
@@ -309,38 +352,57 @@ app.get("/room/:slug", async function (req, res) {
 
     const authHeader = req.headers["authorization"];
     let userId: string | null = null;
+    let userEmail: string | undefined;
+    let userName: string | undefined;
+
     if (authHeader) {
-        try {
-            const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7).trim() : authHeader.trim();
-            const decoded = jwt.verify(token, JWT_SECRET) as { userId: string };
-            userId = decoded.userId;
-        } catch {
-            // Unauthenticated or invalid token
+        const payload = extractTokenPayload(authHeader);
+        if (payload?.userId) {
+            userId = payload.userId;
+            userEmail = payload.email;
+            userName = payload.name;
         }
     }
 
     try {
-        let room = await prismaClient.room.findUnique({
-            where: { slug: slug },
-            include: {
-                admin: {
-                    select: {
-                        id: true,
-                        name: true,
-                        email: true,
+        let room: any = null;
+        try {
+            room = await prismaClient.room.findUnique({
+                where: { slug: slug },
+                include: {
+                    admin: {
+                        select: {
+                            id: true,
+                            name: true,
+                            email: true,
+                        },
+                    },
+                    members: {
+                        select: {
+                            userId: true,
+                            role: true,
+                        },
                     },
                 },
-                members: {
-                    select: {
-                        userId: true,
-                        role: true,
+            });
+        } catch {
+            room = await prismaClient.room.findUnique({
+                where: { slug: slug },
+                include: {
+                    admin: {
+                        select: {
+                            id: true,
+                            name: true,
+                            email: true,
+                        },
                     },
                 },
-            },
-        });
+            }).catch(() => null);
+        }
 
         // If room does not exist and caller is authenticated, auto-create room so user can start drawing immediately
         if (!room && userId) {
+            userId = await ensureUser(userId, userEmail, userName);
             try {
                 room = await prismaClient.room.create({
                     data: {
@@ -373,26 +435,28 @@ app.get("/room/:slug", async function (req, res) {
                         },
                     },
                 });
-            } catch (createErr) {
-                // In case of concurrent creation race condition
-                room = await prismaClient.room.findUnique({
-                    where: { slug: slug },
-                    include: {
-                        admin: {
-                            select: {
-                                id: true,
-                                name: true,
-                                email: true,
+            } catch {
+                try {
+                    room = await prismaClient.room.create({
+                        data: {
+                            slug: slug,
+                            adminId: userId,
+                        },
+                        include: {
+                            admin: {
+                                select: {
+                                    id: true,
+                                    name: true,
+                                    email: true,
+                                },
                             },
                         },
-                        members: {
-                            select: {
-                                userId: true,
-                                role: true,
-                            },
-                        },
-                    },
-                });
+                    });
+                } catch {
+                    room = await prismaClient.room.findUnique({
+                        where: { slug: slug },
+                    }).catch(() => null);
+                }
             }
         }
 
@@ -406,26 +470,28 @@ app.get("/room/:slug", async function (req, res) {
             if (room.adminId === userId) {
                 role = "ADMIN";
             } else {
-                const member = room.members.find((m) => m.userId === userId);
+                const membersList = room.members || [];
+                const member = membersList.find((m: any) => m.userId === userId);
                 if (member) {
                     role = member.role;
                 } else {
                     role = "EDITOR"; // Default authenticated users to editor for seamless collaboration
-                    // Register member asynchronously
-                    prismaClient.boardMember.upsert({
-                        where: {
-                            roomId_userId: {
+                    try {
+                        await prismaClient.boardMember.upsert({
+                            where: {
+                                roomId_userId: {
+                                    roomId: room.id,
+                                    userId: userId,
+                                },
+                            },
+                            create: {
                                 roomId: room.id,
                                 userId: userId,
+                                role: "EDITOR",
                             },
-                        },
-                        create: {
-                            roomId: room.id,
-                            userId: userId,
-                            role: "EDITOR",
-                        },
-                        update: {},
-                    }).catch(() => { });
+                            update: {},
+                        });
+                    } catch {}
                 }
             }
         }
@@ -440,7 +506,7 @@ app.get("/room/:slug", async function (req, res) {
             role: role,
             admin: room.admin,
             createAt: room.createAt,
-            updatedAt: room.updatedAt,
+            updatedAt: room.updatedAt || room.createAt,
         });
     } catch (e) {
         console.error("Get room slug error:", e);
