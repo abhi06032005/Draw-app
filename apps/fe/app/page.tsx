@@ -120,15 +120,9 @@ export default function Home() {
           <div className="flex items-center gap-3">
             <Link
               href="/signin"
-              className="hidden sm:inline-block font-bold text-sm text-[#17140d] px-4 py-2 hover:underline"
+              className="memphis-btn bg-[#12b3a4] text-white font-bold text-sm px-6 py-2.5 rounded-full flex items-center gap-1.5"
             >
-              Sign in
-            </Link>
-            <Link
-              href="/signin"
-              className="memphis-btn bg-[#12b3a4] text-white font-bold text-sm px-5 py-2.5 rounded-full flex items-center gap-1.5"
-            >
-              Start sketching free
+              Get started for free →
             </Link>
           </div>
 
@@ -171,7 +165,7 @@ export default function Home() {
                 href="/signin"
                 className="memphis-btn bg-[#ff5b57] text-white font-black text-base px-8 py-4 rounded-full flex items-center gap-2.5 text-lg"
               >
-                Create room now <ArrowRight size={20} strokeWidth={3} />
+                Get started for free <ArrowRight size={20} strokeWidth={3} />
               </Link>
               <Link
                 href="/dashboard"
@@ -439,8 +433,7 @@ export default function Home() {
           <div>
             <h4 className="font-display font-bold text-sm text-[#17140d] uppercase tracking-wider mb-4">Account</h4>
             <ul className="space-y-2 text-xs font-medium text-[#17140d]/70">
-              <li><Link href="/signin" className="hover:underline">Sign In</Link></li>
-              <li><Link href="/signup" className="hover:underline">Create Account</Link></li>
+              <li><Link href="/signin" className="hover:underline">Get Started</Link></li>
               <li><Link href="/dashboard" className="hover:underline">Dashboard</Link></li>
             </ul>
           </div>

@@ -88,10 +88,10 @@ function SigninContent() {
               <Sparkles size={22} className="text-[#ff5b57]" />
             </div>
             <h1 className="font-display font-black text-3xl text-[#17140d] mb-2">
-              Welcome to Sketio
+              Get Started for Free
             </h1>
             <p className="text-xs text-[#17140d]/70 font-medium max-w-xs mx-auto">
-              Real-time AI collaborative whiteboard. Sign in with your Google account to get started in seconds.
+              Real-time AI collaborative whiteboard. Instant 1-click access with your Google account.
             </p>
           </div>
 

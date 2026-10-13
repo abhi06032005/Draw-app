@@ -19,10 +19,11 @@ import {
   Palette, 
   ArrowRight 
 } from "lucide-react";
+import { useSession } from "next-auth/react";
 import { getAuthToken, removeLocalAuthToken } from "@/lib/auth";
 
 type User = {
-  id: number;
+  id: string | number;
   name: string;
   email: string;
 };
@@ -79,40 +80,68 @@ function RoomCard({ room, onJoin }: { room: Room; onJoin: (slug: string) => void
 
 export default function Dashboard() {
   const router = useRouter();
+  const { data: session } = useSession();
   const [user, setUser] = useState<User | null>(null);
   const [rooms, setRooms] = useState<Room[]>([]);
   const [loadingRooms, setLoadingRooms] = useState(true);
   const [search, setSearch] = useState("");
 
   useEffect(() => {
+    // If session user exists, populate immediately
+    if (session?.user && !user) {
+      setUser({
+        id: (session.user as any).id || "user",
+        name: session.user.name || "Collaborator",
+        email: session.user.email || "",
+      });
+    }
+
     async function fetchData() {
       const token = await getAuthToken();
-      if (!token) { router.push("/signin"); return; }
-
-      try {
-        const userRes = await axios.get(`${BACKEND_URL}/user`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        setUser(userRes.data as User);
-
-        const roomRes = await axios.get(`${BACKEND_URL}/get-rooms`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        const data = roomRes.data;
-        const safeRooms: Room[] = Array.isArray(data?.rooms)
-          ? data.rooms
-          : Array.isArray(data)
-          ? data
-          : [];
-        setRooms(safeRooms);
-      } catch (err) {
+      if (!token && !session?.user) {
         router.push("/signin");
-      } finally {
+        return;
+      }
+
+      if (token) {
+        try {
+          const userRes = await axios.get(`${BACKEND_URL}/user`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (userRes.data) {
+            setUser(userRes.data as User);
+          }
+        } catch (err) {
+          // If session user is available, use it without redirecting
+          if (!session?.user) {
+            router.push("/signin");
+            return;
+          }
+        }
+
+        try {
+          const roomRes = await axios.get(`${BACKEND_URL}/get-rooms`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          const data = roomRes.data;
+          const safeRooms: Room[] = Array.isArray(data?.rooms)
+            ? data.rooms
+            : Array.isArray(data)
+            ? data
+            : [];
+          setRooms(safeRooms);
+        } catch {
+          // Keep rooms empty
+        } finally {
+          setLoadingRooms(false);
+        }
+      } else {
         setLoadingRooms(false);
       }
     }
+
     fetchData();
-  }, [router]);
+  }, [router, session]);
 
   const handleSignOut = () => {
     removeLocalAuthToken();

@@ -1,5 +1,5 @@
 import "dotenv/config";
-import express from "express"; 
+import express from "express";
 import bcrypt from "bcrypt";
 import cors from "cors";
 import helmet from "helmet";
@@ -22,48 +22,48 @@ app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 
 // Restrictive CORS
 const allowedOrigins = process.env.ALLOWED_ORIGINS
-  ? process.env.ALLOWED_ORIGINS.split(",")
-  : ["http://localhost:3000", "http://localhost:3001"];
+    ? process.env.ALLOWED_ORIGINS.split(",")
+    : ["https://localhost:3000"];
 
 app.use(
-  cors({
-    origin: (origin, callback) => {
-      if (!origin || allowedOrigins.includes(origin) || process.env.NODE_ENV !== "production") {
-        callback(null, true);
-      } else {
-        callback(new Error("CORS policy violation"));
-      }
-    },
-    credentials: true,
-  })
+    cors({
+        origin: (origin, callback) => {
+            if (!origin || allowedOrigins.includes(origin) || process.env.NODE_ENV !== "production") {
+                callback(null, true);
+            } else {
+                callback(new Error("CORS policy violation"));
+            }
+        },
+        credentials: true,
+    })
 );
 
 // Rate Limiters
 const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 30, // 30 requests per IP
-  message: { message: "Too many auth attempts. Please try again later." },
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 30, // 30 requests per IP
+    message: { message: "Too many auth attempts. Please try again later." },
 });
 
 const apiLimiter = rateLimit({
-  windowMs: 1 * 60 * 1000, // 1 minute
-  max: 600, // 600 requests per minute for smooth real-time autosave
-  message: { message: "Too many requests. Please slow down." },
+    windowMs: 1 * 60 * 1000, // 1 minute
+    max: 600, // 600 requests per minute for smooth real-time autosave
+    message: { message: "Too many requests. Please slow down." },
 });
 
 app.get("/", (req, res) => {
-  res.send("Sketio HTTP Backend is running");
+    res.send("Sketio HTTP Backend is running");
 });
 
 app.get("/health", (req, res) => {
-  res.json({ status: "ok", timestamp: new Date().toISOString() });
+    res.json({ status: "ok", timestamp: new Date().toISOString() });
 });
 
 app.use("/signup", authLimiter);
 app.use("/signin", authLimiter);
 app.use(apiLimiter);
 
-app.post("/signup", async function(req, res) {
+app.post("/signup", async function (req, res) {
     const parsedData = CreateSignupSchema.safeParse(req.body);
 
     if (!parsedData.success) {
@@ -105,7 +105,7 @@ app.post("/signup", async function(req, res) {
     }
 });
 
-app.post("/signin", async function(req, res) {
+app.post("/signin", async function (req, res) {
     const parsedData = SigninSchema.safeParse(req.body);
 
     if (!parsedData.success) {
@@ -222,7 +222,7 @@ app.get("/get-rooms", middleware, async function (req, res) {
     }
 });
 
-app.post("/room", middleware, async function(req, res) {
+app.post("/room", middleware, async function (req, res) {
     const parsedData = CreateRoomSchema.safeParse(req.body);
 
     if (!parsedData.success) {
@@ -425,7 +425,7 @@ app.get("/room/:slug", async function (req, res) {
                             role: "EDITOR",
                         },
                         update: {},
-                    }).catch(() => {});
+                    }).catch(() => { });
                 }
             }
         }
@@ -657,7 +657,7 @@ app.get("/chats/:roomId", async function (req, res) {
     }
 });
 
-app.delete("/delete/:roomId", middleware, async function(req, res) {
+app.delete("/delete/:roomId", middleware, async function (req, res) {
     const roomId = Number(req.params.roomId);
     if (isNaN(roomId)) {
         return res.status(400).json({ error: "Invalid room ID" });
@@ -699,4 +699,4 @@ const port: number = Number(process.env.PORT || 4000);
 
 app.listen(port, "0.0.0.0", () => {
     console.log(`Server started on port ${port}`);
-});
+});
