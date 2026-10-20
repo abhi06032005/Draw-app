@@ -16,6 +16,9 @@ model User {
   room        Room[]        @relation("AdminRooms")
   memberships BoardMember[]
   chats       Chat[]
+  githubConnections GithubConnection[]
+  architectureGraphs ArchitectureGraph[]
+  analysisJobs AnalysisJob[]
 }
 
 model Room {
@@ -31,6 +34,70 @@ model Room {
   admin     User          @relation("AdminRooms", fields: [adminId], references: [id])
   members   BoardMember[]
   chats     Chat[]
+  architectureGraphs ArchitectureGraph[]
+  analysisJobs AnalysisJob[]
+}
+
+model GithubConnection {
+  id             String   @id @default(uuid())
+  userId         String
+  provider       String   @default("github")
+  githubLogin    String?
+  encryptedToken String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, provider])
+  @@index([userId])
+}
+
+model ArchitectureGraph {
+  id             String   @id @default(uuid())
+  roomId         Int
+  userId         String
+  repositoryFullName String
+  repositoryUrl  String
+  commitSha      String
+  branch         String
+  depth          String
+  graph          Json
+  sourceCount    Int      @default(0)
+  nodeCount      Int      @default(0)
+  edgeCount      Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  room           Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  jobs           AnalysisJob[]
+
+  @@unique([roomId, repositoryFullName, commitSha])
+  @@index([repositoryFullName, commitSha])
+}
+
+model AnalysisJob {
+  id             String   @id @default(uuid())
+  roomId         Int
+  userId         String
+  architectureGraphId String?
+  repositoryFullName String
+  repositoryUrl  String
+  branch         String
+  depth          String
+  status         String   @default("queued")
+  stage          String   @default("queued")
+  error          String?
+  cancelRequested Boolean @default(false)
+  startedAt      DateTime?
+  finishedAt     DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  room           Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  architectureGraph ArchitectureGraph? @relation(fields: [architectureGraphId], references: [id], onDelete: SetNull)
+
+  @@index([roomId, createdAt])
+  @@index([repositoryFullName, status])
 }
 
 model BoardMember {

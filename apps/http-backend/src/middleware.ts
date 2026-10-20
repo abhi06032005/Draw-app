@@ -36,7 +36,7 @@ export async function ensureUser(id: string, email?: string, name?: string): Pro
         name: userName,
         password: "GOOGLE_OAUTH_MANAGED",
       },
-    }).catch((err) => {
+    }).catch((err: Error) => {
       console.warn("create user failed in ensureUser:", err?.message || err);
       return null;
     });
@@ -94,18 +94,7 @@ export function extractTokenPayload(authHeader?: string): { userId?: string; ema
     } catch {}
   }
 
-  // 3. Fallback: Decode token structure
-  try {
-    const decoded = jwt.decode(token) as any;
-    if (decoded && (decoded.userId || decoded.id || decoded.sub)) {
-      return {
-        userId: decoded.userId || decoded.id || decoded.sub,
-        email: decoded.email,
-        name: decoded.name,
-      };
-    }
-  } catch {}
-
+  // Unverified tokens are never trusted: no decode-only fallback.
   return null;
 }
 

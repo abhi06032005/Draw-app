@@ -29,6 +29,16 @@ export async function getAuthToken(): Promise<string | null> {
   return null;
 }
 
+export async function getGitHubAccessToken(): Promise<string | null> {
+  if (typeof window === "undefined") return null;
+  try {
+    const session: any = await getSession();
+    return session?.githubAccessToken || null;
+  } catch {
+    return null;
+  }
+}
+
 export function setLocalAuthToken(token: string) {
   if (typeof window !== "undefined") {
     localStorage.setItem("Authorization", token);

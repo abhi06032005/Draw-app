@@ -33,4 +33,10 @@ export const AddMemberSchema = z.object({
 
 export const UpdateMemberRoleSchema = z.object({
   role: z.enum(["ADMIN", "EDITOR", "VIEWER"]),
-});
+});
+
+export const AnalyzeGitHubRepositorySchema = z.object({
+  url: z.string().trim().min(1).max(300),
+  branch: z.string().trim().min(1).max(255).optional(),
+  depth: z.enum(["quick", "standard", "deep"]).default("standard"),
+});

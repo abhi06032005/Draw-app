@@ -4,30 +4,43 @@ import React, { useEffect, useRef, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import axios from "axios";
 import { io, Socket } from "socket.io-client";
-import type { 
-  ExcalidrawImperativeAPI, 
-  Collaborator 
+import type {
+  ExcalidrawImperativeAPI,
+  Collaborator,
 } from "@excalidraw/excalidraw/types";
 
 import { BACKEND_URL, WS_URL } from "@/config";
 import { getAuthToken } from "@/lib/auth";
-import { 
-  generateEncryptionKey, 
+import {
+  generateEncryptionKey,
   getOrCreateRoomKey,
-  encryptData, 
-  decryptData 
+  encryptData,
+  decryptData,
 } from "@/lib/encryption";
-import { 
-  WS_SUBTYPES, 
-  parseRoomHash, 
-  buildRoomHash, 
+import {
+  WS_SUBTYPES,
+  parseRoomHash,
+  buildRoomHash,
   getCollaboratorColor,
-  type SocketUpdateData 
+  type SocketUpdateData,
 } from "@/lib/collab";
 
 import { ExcalidrawWrapper } from "./ExcalidrawWrapper";
 import { WhiteboardHeader, type ConnectionStatus } from "./WhiteboardHeader";
 import { AIDiagramModal } from "./AIDiagramModal";
+import { GitHubRepositoryModal } from "./GitHubRepositoryModal";
+import { ArchitectureInspector } from "./ArchitectureInspector";
+import { ArchitectureChat } from "./ArchitectureChat";
+import { ArchitectureImprovements } from "./ArchitectureImprovements";
+import {
+  architectureGraphToExcalidrawElements,
+  getArchitectureNodeId,
+  type ArchitectureLayoutMode,
+} from "@/lib/architectureElements";
+import type {
+  ArchitectureGraph,
+  ArchitectureNode,
+} from "@/lib/architectureTypes";
 
 interface WhiteboardPageProps {
   slug: string;
@@ -42,11 +55,24 @@ export function WhiteboardPage({ slug }: WhiteboardPageProps) {
   const [error, setError] = useState<string | null>(null);
 
   const [theme, setTheme] = useState<"light" | "dark">("dark");
-  const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>("connecting");
-  const [collaborators, setCollaborators] = useState<Map<string, Collaborator>>(new Map());
+  const [connectionStatus, setConnectionStatus] =
+    useState<ConnectionStatus>("connecting");
+  const [collaborators, setCollaborators] = useState<Map<string, Collaborator>>(
+    new Map(),
+  );
   const [isSaving, setIsSaving] = useState(false);
   const [shareCopied, setShareCopied] = useState(false);
   const [aiModalOpen, setAiModalOpen] = useState(false);
+  const [githubModalOpen, setGithubModalOpen] = useState(false);
+  const [architectureGraph, setArchitectureGraph] =
+    useState<ArchitectureGraph | null>(null);
+  const [selectedArchitectureNode, setSelectedArchitectureNode] =
+    useState<ArchitectureNode | null>(null);
+  const [architectureChatOpen, setArchitectureChatOpen] = useState(false);
+  const [architectureImprovementsOpen, setArchitectureImprovementsOpen] =
+    useState(false);
+  const [layoutMode, setLayoutMode] =
+    useState<ArchitectureLayoutMode>("high-level");
 
   // References
   const excalidrawAPIRef = useRef<ExcalidrawImperativeAPI | null>(null);
@@ -103,13 +129,22 @@ export function WhiteboardPage({ slug }: WhiteboardPageProps) {
 
         // Initialize saved state fingerprint
         if (data.elements) {
-          lastSavedFingerprintRef.current = getElementsFingerprint(data.elements);
+          lastSavedFingerprintRef.current = getElementsFingerprint(
+            data.elements,
+          );
           for (const el of data.elements) {
             broadcastedVersionsRef.current.set(el.id, el.version);
           }
         }
         if (data.appState) {
           lastSavedConfigRef.current = `${data.appState.viewBackgroundColor || ""}_${data.appState.gridSize || ""}_${data.appState.theme || ""}`;
+        if (data.architectureGraph) {
+          setArchitectureGraph(data.architectureGraph as ArchitectureGraph);
+        } else if (data.appState?.architectureGraph) {
+          setArchitectureGraph(
+            data.appState.architectureGraph as ArchitectureGraph,
+          );
+        }
         }
 
         // Encryption key handling via URL hash (#room=slug,key) or deterministic room key
@@ -186,7 +221,8 @@ export function WhiteboardPage({ slug }: WhiteboardPageProps) {
     socket.on("new-user", async () => {
       console.log("[Collab] New peer joined! Broadcasting current scene...");
       if (excalidrawAPIRef.current) {
-        const elements = excalidrawAPIRef.current.getSceneElementsIncludingDeleted();
+        const elements =
+          excalidrawAPIRef.current.getSceneElementsIncludingDeleted();
         broadcastScene(WS_SUBTYPES.INIT, elements, true);
       }
     });
@@ -215,50 +251,57 @@ export function WhiteboardPage({ slug }: WhiteboardPageProps) {
     });
 
     // Incoming remote updates from peers
-    socket.on("client-broadcast", async (encryptedBuffer: ArrayBuffer, iv: Uint8Array) => {
-      if (!roomKeyRef.current) return;
+    socket.on(
+      "client-broadcast",
+      async (encryptedBuffer: ArrayBuffer, iv: Uint8Array) => {
+        if (!roomKeyRef.current) return;
 
-      try {
-        const decrypted = await decryptData(
-          iv,
-          encryptedBuffer,
-          roomKeyRef.current
-        );
+        try {
+          const decrypted = await decryptData(
+            iv,
+            encryptedBuffer,
+            roomKeyRef.current,
+          );
 
-        const decoded = new TextDecoder().decode(decrypted);
-        const data: SocketUpdateData = JSON.parse(decoded);
+          const decoded = new TextDecoder().decode(decrypted);
+          const data: SocketUpdateData = JSON.parse(decoded);
 
-        if (data.type === WS_SUBTYPES.INIT || data.type === WS_SUBTYPES.UPDATE) {
-          const remoteElements = data.payload.elements;
-          if (remoteElements && remoteElements.length > 0) {
-            if (!excalidrawAPIRef.current) {
-              // Excalidraw component is still loading; buffer remote elements
-              pendingRemoteElementsRef.current = [
-                ...pendingRemoteElementsRef.current,
-                ...remoteElements,
-              ];
-            } else {
-              applyRemoteElements(remoteElements);
+          if (
+            data.type === WS_SUBTYPES.INIT ||
+            data.type === WS_SUBTYPES.UPDATE
+          ) {
+            const remoteElements = data.payload.elements;
+            if (remoteElements && remoteElements.length > 0) {
+              if (!excalidrawAPIRef.current) {
+                // Excalidraw component is still loading; buffer remote elements
+                pendingRemoteElementsRef.current = [
+                  ...pendingRemoteElementsRef.current,
+                  ...remoteElements,
+                ];
+              } else {
+                applyRemoteElements(remoteElements);
+              }
             }
+          } else if (data.type === WS_SUBTYPES.MOUSE_LOCATION) {
+            const { socketId, pointer, button, selectedElementIds, username } =
+              data.payload;
+            setCollaborators((prev) => {
+              const next = new Map(prev);
+              next.set(socketId, {
+                pointer,
+                button: button || "up",
+                selectedElementIds,
+                username: username || "Collaborator",
+                color: getCollaboratorColor(socketId),
+              } as any);
+              return next;
+            });
           }
-        } else if (data.type === WS_SUBTYPES.MOUSE_LOCATION) {
-          const { socketId, pointer, button, selectedElementIds, username } = data.payload;
-          setCollaborators((prev) => {
-            const next = new Map(prev);
-            next.set(socketId, {
-              pointer,
-              button: button || "up",
-              selectedElementIds,
-              username: username || "Collaborator",
-              color: getCollaboratorColor(socketId),
-            } as any);
-            return next;
-          });
+        } catch (e) {
+          console.error("[Collab] Decryption/parsing error:", e);
         }
-      } catch (e) {
-        console.error("[Collab] Decryption/parsing error:", e);
-      }
-    });
+      },
+    );
 
     return () => {
       socket.disconnect();
@@ -269,15 +312,25 @@ export function WhiteboardPage({ slug }: WhiteboardPageProps) {
   // ─── 3. Reconcile Remote Elements Helper ─────────────────────────────
   const applyRemoteElements = useCallback(
     async (remoteElements: readonly any[]) => {
-      if (!excalidrawAPIRef.current || !remoteElements || !remoteElements.length) return;
+      if (
+        !excalidrawAPIRef.current ||
+        !remoteElements ||
+        !remoteElements.length
+      )
+        return;
 
       isRemoteUpdateRef.current = true;
       try {
         const { reconcileElements } = await import("@excalidraw/excalidraw");
-        const localElements = excalidrawAPIRef.current.getSceneElementsIncludingDeleted();
+        const localElements =
+          excalidrawAPIRef.current.getSceneElementsIncludingDeleted();
         const appState = excalidrawAPIRef.current.getAppState();
 
-        const reconciled = reconcileElements(localElements, remoteElements, appState);
+        const reconciled = reconcileElements(
+          localElements,
+          remoteElements,
+          appState,
+        );
 
         // Update local version cache so we don't treat peer changes as our own
         for (const el of remoteElements) {
@@ -298,7 +351,7 @@ export function WhiteboardPage({ slug }: WhiteboardPageProps) {
         }, 120);
       }
     },
-    []
+    [],
   );
 
   const handleAPIReady = useCallback(
@@ -311,7 +364,7 @@ export function WhiteboardPage({ slug }: WhiteboardPageProps) {
         applyRemoteElements(pending);
       }
     },
-    [applyRemoteElements]
+    [applyRemoteElements],
   );
 
   // ─── 4. Broadcast Helpers ───────────────────────────────────────────
@@ -330,20 +383,20 @@ export function WhiteboardPage({ slug }: WhiteboardPageProps) {
           volatile ? "server-volatile-broadcast" : "server-broadcast",
           slug,
           encryptedBuffer,
-          iv
+          iv,
         );
       } catch (err) {
         console.error("[Collab] Broadcast failed:", err);
       }
     },
-    [slug]
+    [slug],
   );
 
   const broadcastScene = useCallback(
     async (
       updateType: WS_SUBTYPES.INIT | WS_SUBTYPES.UPDATE,
       elements: readonly any[],
-      syncAll = false
+      syncAll = false,
     ) => {
       const changedElements = elements.filter((el) => {
         if (syncAll) return true;
@@ -362,7 +415,7 @@ export function WhiteboardPage({ slug }: WhiteboardPageProps) {
         payload: { elements: changedElements },
       });
     },
-    [broadcastSocketData]
+    [broadcastSocketData],
   );
 
   // ─── 5. Canvas Change Handlers & Autosave ───────────────────────────
@@ -371,10 +424,24 @@ export function WhiteboardPage({ slug }: WhiteboardPageProps) {
       // Don't re-broadcast or save incoming remote updates
       if (isRemoteUpdateRef.current) return;
 
+      const selectedId = Object.keys(appState?.selectedElementIds || {})[0];
+      const selectedElement = selectedId
+        ? elements.find((element) => element.id === selectedId)
+        : null;
+      const architectureNodeId = getArchitectureNodeId(selectedElement);
+      if (architectureNodeId && architectureGraph) {
+        setSelectedArchitectureNode(
+          architectureGraph.nodes.find(
+            (node) => node.id === architectureNodeId,
+          ) || null,
+        );
+      }
+
       const currentFingerprint = getElementsFingerprint(elements);
       const currentConfig = `${appState?.viewBackgroundColor || ""}_${appState?.gridSize || ""}_${appState?.theme || ""}`;
 
-      const hasElementChanges = currentFingerprint !== lastSavedFingerprintRef.current;
+      const hasElementChanges =
+        currentFingerprint !== lastSavedFingerprintRef.current;
       const hasConfigChanges = currentConfig !== lastSavedConfigRef.current;
 
       // Ignore pure mouse moves, hover, zooming, selection changes with no element modifications
@@ -411,7 +478,7 @@ export function WhiteboardPage({ slug }: WhiteboardPageProps) {
             },
             {
               headers: { Authorization: `Bearer ${token}` },
-            }
+            },
           );
 
           // Update saved references
@@ -424,7 +491,7 @@ export function WhiteboardPage({ slug }: WhiteboardPageProps) {
         }
       }, 1500);
     },
-    [broadcastScene, slug]
+    [architectureGraph, broadcastScene, slug],
   );
 
   // ─── 5. Pointer / Cursor Movement ──────────────────────────────────
@@ -441,7 +508,8 @@ export function WhiteboardPage({ slug }: WhiteboardPageProps) {
       const socket = socketRef.current;
       if (!socket?.id) return;
 
-      const selectedElementIds = excalidrawAPIRef.current?.getAppState().selectedElementIds || {};
+      const selectedElementIds =
+        excalidrawAPIRef.current?.getAppState().selectedElementIds || {};
 
       broadcastSocketData(
         {
@@ -454,10 +522,10 @@ export function WhiteboardPage({ slug }: WhiteboardPageProps) {
             username: usernameRef.current,
           },
         },
-        true // volatile
+        true, // volatile
       );
     },
-    [broadcastSocketData]
+    [broadcastSocketData],
   );
 
   // ─── 6. Share Link ──────────────────────────────────────────────────
@@ -465,7 +533,7 @@ export function WhiteboardPage({ slug }: WhiteboardPageProps) {
     if (typeof window !== "undefined" && roomKeyRef.current) {
       const fullUrl = `${window.location.origin}/whiteboard/${slug}${buildRoomHash(
         slug,
-        roomKeyRef.current
+        roomKeyRef.current,
       )}`;
       navigator.clipboard.writeText(fullUrl);
       setShareCopied(true);
@@ -495,7 +563,8 @@ export function WhiteboardPage({ slug }: WhiteboardPageProps) {
         mergedElements = newElements;
         focusElements = newElements;
       } else {
-        const currentElements = excalidrawAPIRef.current.getSceneElementsIncludingDeleted();
+        const currentElements =
+          excalidrawAPIRef.current.getSceneElementsIncludingDeleted();
         // Offset new elements if canvas already has content
         let minX = 0;
         let maxY = 0;
@@ -530,16 +599,199 @@ export function WhiteboardPage({ slug }: WhiteboardPageProps) {
       excalidrawAPIRef.current.updateScene({ elements: finalElements });
 
       try {
-        excalidrawAPIRef.current.scrollToContent(focusElements, { fitToViewport: true });
+        excalidrawAPIRef.current.scrollToContent(focusElements, {
+          fitToViewport: true,
+        });
       } catch {
         // Fallback
       }
 
       // Trigger scene save & WebSocket broadcast
       broadcastScene(WS_SUBTYPES.UPDATE, finalElements);
-      handleSceneChange(finalElements, excalidrawAPIRef.current.getAppState(), boardData?.files || {});
+      handleSceneChange(
+        finalElements,
+        excalidrawAPIRef.current.getAppState(),
+        boardData?.files || {},
+      );
     },
-    [boardData, broadcastScene, handleSceneChange]
+    [boardData, broadcastScene, handleSceneChange],
+  );
+
+  const handleFitToArchitecture = useCallback(() => {
+    if (!excalidrawAPIRef.current || !architectureGraph) return;
+    const elements =
+      excalidrawAPIRef.current.getSceneElementsIncludingDeleted();
+    const archElements = (elements as any[]).filter(
+      (el) => !el.isDeleted && el.customData?.architecture,
+    );
+    if (archElements.length > 0) {
+      try {
+        excalidrawAPIRef.current.scrollToContent(archElements, {
+          fitToViewport: true,
+        });
+      } catch {
+        // Fallback
+      }
+    }
+  }, [architectureGraph]);
+
+  const handleChangeLayoutMode = useCallback(
+    async (mode: ArchitectureLayoutMode) => {
+      if (!excalidrawAPIRef.current || !architectureGraph) return;
+      setLayoutMode(mode);
+      const currentElements =
+        excalidrawAPIRef.current.getSceneElementsIncludingDeleted() as any[];
+      const userElements = currentElements.filter(
+        (el) => !el.customData?.architecture,
+      );
+      const nonDeleted = userElements.filter((el) => !el.isDeleted);
+      const offsetY =
+        nonDeleted.length > 0
+          ? Math.max(...nonDeleted.map((el) => el.y + el.height)) + 180
+          : 100;
+      const newArchElements = architectureGraphToExcalidrawElements(
+        architectureGraph,
+        {
+          offsetX: 120,
+          offsetY,
+          layoutMode: mode,
+        },
+      );
+      const finalElements = [...userElements, ...newArchElements];
+      const nextAppState = {
+        ...excalidrawAPIRef.current.getAppState(),
+        architectureGraph,
+      };
+
+      try {
+        const exModule = await import("@excalidraw/excalidraw");
+        if (typeof exModule.restoreElements === "function") {
+          excalidrawAPIRef.current.updateScene({
+            elements: exModule.restoreElements(finalElements, null),
+            appState: nextAppState,
+          });
+        } else {
+          excalidrawAPIRef.current.updateScene({
+            elements: finalElements,
+            appState: nextAppState,
+          });
+        }
+      } catch {
+        excalidrawAPIRef.current.updateScene({
+          elements: finalElements,
+          appState: nextAppState,
+        });
+      }
+
+      setTimeout(() => handleFitToArchitecture(), 100);
+      broadcastScene(WS_SUBTYPES.UPDATE, finalElements);
+      handleSceneChange(finalElements, nextAppState, boardData?.files || {});
+    },
+    [
+      architectureGraph,
+      boardData,
+      broadcastScene,
+      handleFitToArchitecture,
+      handleSceneChange,
+    ],
+  );
+
+  const handleArchitectureGraph = useCallback(
+    async (
+      graph: ArchitectureGraph,
+      preferredMode?: ArchitectureLayoutMode,
+    ) => {
+      if (!excalidrawAPIRef.current) return;
+      const targetMode = preferredMode || layoutMode;
+      if (preferredMode) setLayoutMode(preferredMode);
+
+      const currentElements =
+        excalidrawAPIRef.current.getSceneElementsIncludingDeleted();
+      // Remove previously existing architecture elements if re-importing/updating
+      const userElements = (currentElements as any[]).filter(
+        (el) => !el.customData?.architecture,
+      );
+      const nonDeleted = userElements.filter(
+        (element: any) => !element.isDeleted,
+      );
+      const offsetY =
+        nonDeleted.length > 0
+          ? Math.max(
+              ...nonDeleted.map((element: any) => element.y + element.height),
+            ) + 180
+          : 100;
+      const architectureElements = architectureGraphToExcalidrawElements(
+        graph,
+        { offsetX: 120, offsetY, layoutMode: targetMode },
+      );
+      const finalElements = [...userElements, ...architectureElements];
+      const nextAppState = {
+        ...excalidrawAPIRef.current.getAppState(),
+        architectureGraph: graph,
+      };
+      try {
+        const exModule = await import("@excalidraw/excalidraw");
+        if (typeof exModule.restoreElements === "function") {
+          excalidrawAPIRef.current.updateScene({
+            elements: exModule.restoreElements(finalElements, null),
+            appState: nextAppState,
+          });
+        } else {
+          excalidrawAPIRef.current.updateScene({
+            elements: finalElements,
+            appState: nextAppState,
+          });
+        }
+      } catch {
+        excalidrawAPIRef.current.updateScene({
+          elements: finalElements,
+          appState: nextAppState,
+        });
+      }
+      setArchitectureGraph(graph);
+      setSelectedArchitectureNode(null);
+      try {
+        excalidrawAPIRef.current.scrollToContent(architectureElements, {
+          fitToViewport: true,
+        });
+      } catch {
+        // Keep the current viewport if the canvas is still settling.
+      }
+      broadcastScene(WS_SUBTYPES.UPDATE, finalElements);
+      handleSceneChange(finalElements, nextAppState, boardData?.files || {});
+    },
+    [boardData, broadcastScene, handleSceneChange, layoutMode],
+  );
+
+  const highlightArchitectureNodes = useCallback(
+    (nodeIds: string[]) => {
+      if (!excalidrawAPIRef.current || !architectureGraph) return;
+      const elements =
+        excalidrawAPIRef.current.getSceneElementsIncludingDeleted();
+      const selectedElementIds: Record<string, true> = {};
+      for (const element of elements as any[]) {
+        const nodeId = getArchitectureNodeId(element);
+        if (nodeId && nodeIds.includes(nodeId) && element.type !== "text") {
+          selectedElementIds[element.id] = true;
+        }
+      }
+      excalidrawAPIRef.current.updateScene({
+        appState: { selectedElementIds },
+      });
+      const focus = (elements as any[]).filter(
+        (element) => selectedElementIds[element.id],
+      );
+      if (focus.length > 0) {
+        try {
+          excalidrawAPIRef.current.scrollToContent(focus, {
+            fitToViewport: true,
+          });
+        } catch {
+          // Keep the current viewport when the canvas cannot focus yet.
+        }
+      }
+    },
+    [architectureGraph],
   );
 
   // ─── Render States ──────────────────────────────────────────────────
@@ -570,11 +822,13 @@ export function WhiteboardPage({ slug }: WhiteboardPageProps) {
   }
 
   // Active collaborators array for header
-  const collaboratorList = Array.from(collaborators.entries()).map(([id, c]) => ({
-    socketId: id,
-    username: c.username || "Collaborator",
-    color: (c as any).color,
-  }));
+  const collaboratorList = Array.from(collaborators.entries()).map(
+    ([id, c]) => ({
+      socketId: id,
+      username: c.username || "Collaborator",
+      color: (c as any).color,
+    }),
+  );
 
   const initialElements = boardData?.elements || [];
   const initialAppState = {
@@ -583,7 +837,9 @@ export function WhiteboardPage({ slug }: WhiteboardPageProps) {
   };
 
   return (
-    <div className={`w-screen h-screen flex flex-col overflow-hidden ${theme === "dark" ? "bg-[#121212]" : "bg-white"}`}>
+    <div
+      className={`w-screen h-screen flex flex-col overflow-hidden ${theme === "dark" ? "bg-[#121212]" : "bg-white"}`}
+    >
       {/* Product Header */}
       <WhiteboardHeader
         roomSlug={slug}
@@ -596,6 +852,48 @@ export function WhiteboardPage({ slug }: WhiteboardPageProps) {
         onShare={handleShare}
         shareCopied={shareCopied}
         onOpenAI={() => setAiModalOpen(true)}
+        onOpenGitHub={() => setGithubModalOpen(true)}
+        onOpenArchitectureChat={
+          architectureGraph ? () => setArchitectureChatOpen(true) : undefined
+        }
+        onOpenArchitectureImprovements={
+          architectureGraph
+            ? () => setArchitectureImprovementsOpen(true)
+            : undefined
+        }
+        currentLayoutMode={architectureGraph ? layoutMode : undefined}
+        onChangeLayoutMode={
+          architectureGraph ? handleChangeLayoutMode : undefined
+        }
+        onFitToArchitecture={
+          architectureGraph ? handleFitToArchitecture : undefined
+        }
+        graphStats={
+          architectureGraph
+            ? {
+                nodeCount: architectureGraph.nodes.length,
+                edgeCount: architectureGraph.edges.length,
+                repositoryName: architectureGraph.repository?.fullName,
+              }
+            : undefined
+        }
+        nodes={
+          architectureGraph
+            ? architectureGraph.nodes.map((n) => ({
+                id: n.id,
+                name: n.name,
+                type: n.type,
+              }))
+            : undefined
+        }
+        onSearchSelectNode={(nodeId) => {
+          if (!architectureGraph) return;
+          const node = architectureGraph.nodes.find((n) => n.id === nodeId);
+          if (node) {
+            setSelectedArchitectureNode(node);
+            highlightArchitectureNodes([node.id]);
+          }
+        }}
       />
 
       {/* Main Canvas Container */}
@@ -621,6 +919,66 @@ export function WhiteboardPage({ slug }: WhiteboardPageProps) {
         onInsertElements={handleInsertAIElements}
         theme={theme}
       />
+
+      {architectureGraph && (
+        <ArchitectureInspector
+          graph={architectureGraph}
+          selectedNode={selectedArchitectureNode}
+          theme={theme}
+          onClose={() => {
+            setArchitectureGraph(null);
+            setSelectedArchitectureNode(null);
+          }}
+          onSelectNode={setSelectedArchitectureNode}
+        />
+      )}
+
+      {architectureGraph && architectureChatOpen && (
+        <ArchitectureChat
+          graph={architectureGraph}
+          theme={theme}
+          onClose={() => setArchitectureChatOpen(false)}
+          onHighlight={highlightArchitectureNodes}
+        />
+      )}
+
+      {architectureGraph && architectureImprovementsOpen && (
+        <ArchitectureImprovements
+          graph={architectureGraph}
+          theme={theme}
+          onClose={() => setArchitectureImprovementsOpen(false)}
+          onHighlight={highlightArchitectureNodes}
+          onPreview={(proposedGraph) => {
+            setArchitectureImprovementsOpen(false);
+            handleArchitectureGraph(proposedGraph);
+          }}
+        />
+      )}
+
+      <GitHubRepositoryModal
+        isOpen={githubModalOpen}
+        roomSlug={slug}
+        theme={theme}
+        onClose={() => setGithubModalOpen(false)}
+        onAnalyzed={handleArchitectureGraph}
+      />
+
+      {/* Floating Query button (GitNexus-style interactive launcher) */}
+      {architectureGraph && (
+        <button
+          onClick={() => setArchitectureChatOpen(true)}
+          className={`fixed bottom-6 left-6 z-20 flex items-center gap-2 rounded-xl border px-3.5 py-2 text-xs font-mono font-bold shadow-2xl transition-all duration-200 hover:scale-105 active:scale-95 ${
+            theme === "dark"
+              ? "bg-[#0f172a]/95 border-cyan-500/40 text-cyan-300 hover:border-cyan-400 shadow-cyan-950/50"
+              : "bg-white/95 border-cyan-400 text-cyan-800 hover:border-cyan-500 shadow-neutral-300"
+          }`}
+          title="Open Architecture Query & AI Chat"
+        >
+          <span className="flex h-2 w-2 rounded-full bg-cyan-400 animate-pulse" />
+          <span className="text-cyan-400 font-bold">&gt;_</span>
+          <span>Query Architecture</span>
+        </button>
+      )}
     </div>
   );
 }
