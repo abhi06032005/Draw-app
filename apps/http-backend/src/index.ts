@@ -781,7 +781,12 @@ app.post(
 
       const userToken = await getUserGitHubToken(userId);
       const effectiveToken =
-        String(req.headers["x-github-token"] || "") || userToken || undefined;
+        String(req.headers["x-github-token"] || "").trim() ||
+        userToken ||
+        process.env.GITHUB_TOKEN ||
+        process.env.GITHUB_PAT ||
+        process.env.GH_TOKEN ||
+        undefined;
 
       const github = new GitHubClient({
         token: effectiveToken,

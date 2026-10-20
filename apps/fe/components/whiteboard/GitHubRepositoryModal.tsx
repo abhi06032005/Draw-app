@@ -11,6 +11,9 @@ import {
   Search,
   Sparkles,
   X,
+  Key,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import axios from "axios";
 
@@ -63,6 +66,10 @@ export function GitHubRepositoryModal({
     connected: boolean;
     githubLogin: string | null;
   } | null>(null);
+  const [personalToken, setPersonalToken] = useState("");
+  const [showTokenInput, setShowTokenInput] = useState(false);
+  const [isSavingToken, setIsSavingToken] = useState(false);
+  const [tokenSaveSuccess, setTokenSaveSuccess] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -73,6 +80,11 @@ export function GitHubRepositoryModal({
     } catch {
       setRecent([]);
     }
+
+    try {
+      const storedToken = localStorage.getItem("github_personal_token");
+      if (storedToken) setPersonalToken(storedToken);
+    } catch {}
 
     async function checkStatus() {
       const token = await getAuthToken();
@@ -138,6 +150,39 @@ export function GitHubRepositoryModal({
     }
   };
 
+  const savePersonalToken = async () => {
+    const trimmedToken = personalToken.trim();
+    if (!trimmedToken) return;
+    const token = await getAuthToken();
+    if (!token) return;
+    setIsSavingToken(true);
+    setTokenSaveSuccess(false);
+    try {
+      await axios.put(
+        `${BACKEND_URL}/github/connection`,
+        { accessToken: trimmedToken },
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+      if (typeof window !== "undefined") {
+        localStorage.setItem("github_personal_token", trimmedToken);
+      }
+      setGitHubStatus({
+        connected: true,
+        githubLogin: "Personal Token (Encrypted)",
+      });
+      setTokenSaveSuccess(true);
+      setError(null);
+      setTimeout(() => setTokenSaveSuccess(false), 3000);
+    } catch (err: any) {
+      setError(
+        err?.response?.data?.message ||
+          "Failed to save token to account vault.",
+      );
+    } finally {
+      setIsSavingToken(false);
+    }
+  };
+
   const cancelJob = async () => {
     if (!jobId) return;
     const token = await getAuthToken();
@@ -173,6 +218,8 @@ export function GitHubRepositoryModal({
         );
       setStage(1);
       const githubToken = await getGitHubAccessToken();
+      const effectiveGithubToken =
+        personalToken.trim() || githubToken || undefined;
       const response = await axios.post(
         `${BACKEND_URL}/room/${encodeURIComponent(roomSlug)}/github-architecture/jobs`,
         {
@@ -184,7 +231,9 @@ export function GitHubRepositoryModal({
         {
           headers: {
             Authorization: `Bearer ${token}`,
-            ...(githubToken ? { "X-GitHub-Token": githubToken } : {}),
+            ...(effectiveGithubToken
+              ? { "X-GitHub-Token": effectiveGithubToken }
+              : {}),
           },
           timeout: 120000,
         },
@@ -219,11 +268,18 @@ export function GitHubRepositoryModal({
         }
       }
     } catch (requestError: any) {
-      setError(
+      const errMsg =
         requestError?.response?.data?.message ||
-          requestError?.message ||
-          "Repository analysis failed.",
-      );
+        requestError?.message ||
+        "Repository analysis failed.";
+      setError(errMsg);
+      if (
+        errMsg.toLowerCase().includes("rate limit") ||
+        errMsg.toLowerCase().includes("denied") ||
+        requestError?.response?.status === 403
+      ) {
+        setShowTokenInput(true);
+      }
     } finally {
       setIsAnalyzing(false);
     }
@@ -310,35 +366,103 @@ export function GitHubRepositoryModal({
             </div>
           )}
 
-          {/* GitHub Connection Status */}
+          {/* GitHub Connection Status & Personal Access Token */}
           <div
-            className={`flex items-center justify-between rounded-xl border p-3 ${isDark ? "border-neutral-800 bg-neutral-900/60" : "border-neutral-200 bg-neutral-50"}`}
+            className={`rounded-xl border p-3 transition-all ${
+              isDark
+                ? "border-neutral-800 bg-neutral-900/60"
+                : "border-neutral-200 bg-neutral-50"
+            }`}
           >
-            <div className="flex items-center gap-2.5">
-              <Github
-                size={16}
-                className={gitHubStatus?.connected ? "text-emerald-400" : "opacity-40"}
-              />
-              <div className="text-xs">
-                {gitHubStatus?.connected ? (
-                  <span className="font-semibold text-emerald-400">
-                    Connected as {gitHubStatus.githubLogin || "GitHub User"} (private repositories supported)
-                  </span>
-                ) : (
-                  <span className="opacity-70">
-                    Public repositories supported. Sign in with GitHub to access private repositories.
-                  </span>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <Github
+                  size={16}
+                  className={
+                    gitHubStatus?.connected ? "text-emerald-400" : "opacity-40"
+                  }
+                />
+                <div className="text-xs">
+                  {gitHubStatus?.connected ? (
+                    <span className="font-semibold text-emerald-400">
+                      Connected as {gitHubStatus.githubLogin || "GitHub User"}{" "}
+                      (private repos + 5,000 req/hr)
+                    </span>
+                  ) : (
+                    <span className="opacity-70">
+                      Public repos supported (60 req/hr unauthenticated limit).
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                {gitHubStatus?.connected && (
+                  <button
+                    onClick={disconnectGitHub}
+                    type="button"
+                    className="text-[11px] font-medium text-rose-400 hover:underline"
+                  >
+                    Disconnect
+                  </button>
                 )}
+                <button
+                  type="button"
+                  onClick={() => setShowTokenInput(!showTokenInput)}
+                  className="flex items-center gap-1 text-[11px] font-semibold text-violet-400 hover:text-violet-300"
+                >
+                  <Key size={12} />
+                  <span>{showTokenInput ? "Hide token" : "Provide token"}</span>
+                  {showTokenInput ? (
+                    <ChevronUp size={12} />
+                  ) : (
+                    <ChevronDown size={12} />
+                  )}
+                </button>
               </div>
             </div>
-            {gitHubStatus?.connected && (
-              <button
-                onClick={disconnectGitHub}
-                type="button"
-                className="text-[11px] font-medium text-rose-400 hover:underline"
-              >
-                Disconnect
-              </button>
+
+            {showTokenInput && (
+              <div className="mt-3 pt-3 border-t border-neutral-700/40 space-y-2">
+                <div className="flex items-center justify-between text-[11px]">
+                  <span className="opacity-75 font-semibold">
+                    GitHub Personal Access Token (PAT)
+                  </span>
+                  <a
+                    href="https://github.com/settings/tokens/new?scopes=public_repo&description=Sketio+Architecture+Importer"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1 text-violet-400 hover:underline"
+                  >
+                    <span>Create token on GitHub (10s)</span>
+                    <ExternalLink size={10} />
+                  </a>
+                </div>
+                <div className="flex gap-2">
+                  <input
+                    type="password"
+                    value={personalToken}
+                    onChange={(e) => setPersonalToken(e.target.value)}
+                    placeholder="ghp_... or github_pat_..."
+                    className={`flex-1 rounded-lg border px-3 py-1.5 text-xs outline-none focus:border-violet-500 font-mono ${input}`}
+                  />
+                  <button
+                    type="button"
+                    onClick={savePersonalToken}
+                    disabled={isSavingToken || !personalToken.trim()}
+                    className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-violet-600 hover:bg-violet-700 text-white disabled:opacity-40 transition"
+                  >
+                    {isSavingToken ? (
+                      <Loader2 size={12} className="animate-spin" />
+                    ) : tokenSaveSuccess ? (
+                      <Check size={12} />
+                    ) : null}
+                    <span>{tokenSaveSuccess ? "Saved!" : "Save to Vault"}</span>
+                  </button>
+                </div>
+                <p className="text-[10px] opacity-60">
+                  Raises rate limit to 5,000 requests/hr. Tokens are encrypted server-side with AES-256-GCM.
+                </p>
+              </div>
             )}
           </div>
 

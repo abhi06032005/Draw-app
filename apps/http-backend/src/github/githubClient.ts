@@ -61,7 +61,11 @@ export class GitHubClient {
   constructor(options: GitHubClientOptions = {}) {
     this.fetchImpl = options.fetchImpl || fetch;
     this.timeoutMs = options.timeoutMs || 15_000;
-    this.token = options.token;
+    this.token =
+      options.token ||
+      process.env.GITHUB_TOKEN ||
+      process.env.GITHUB_PAT ||
+      process.env.GH_TOKEN;
     this.signal = options.signal;
   }
 
@@ -138,12 +142,28 @@ export class GitHubClient {
       });
 
       if (!response.ok) {
+        let details = "";
+        try {
+          const body: any = await response.json();
+          if (body?.message) details = body.message;
+        } catch {}
+
+        const remaining = response.headers.get("x-ratelimit-remaining");
+        const resetTime = response.headers.get("x-ratelimit-reset");
+        let rateLimitInfo = "";
+        if (remaining === "0" && resetTime) {
+          const resetDate = new Date(Number(resetTime) * 1000);
+          rateLimitInfo = `GitHub unauthenticated rate limit (60 requests/hr) reached. Resets at ${resetDate.toLocaleTimeString()}. Add a GitHub token or connect OAuth for 5,000 requests/hr.`;
+        }
+
         const message =
           response.status === 404
             ? "Repository or revision not found."
             : response.status === 403
-              ? "GitHub denied this request or its rate limit was reached."
-              : `GitHub request failed with status ${response.status}.`;
+              ? (rateLimitInfo || (details ? `GitHub denied request (${details}). Provide a GitHub token in the modal for 5,000 requests/hr.` : "GitHub denied this request or its rate limit was reached. Provide a GitHub token in the modal for 5,000 requests/hr."))
+              : details
+                ? `GitHub request failed (${response.status}): ${details}`
+                : `GitHub request failed with status ${response.status}.`;
         throw new GitHubApiError(
           message,
           response.status,
