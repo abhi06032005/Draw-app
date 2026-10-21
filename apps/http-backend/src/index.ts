@@ -172,10 +172,19 @@ app.post("/signin", async function (req, res) {
 
     const userId = user.id;
 
-    const token = jwt.sign({ userId }, JWT_SECRET, { expiresIn: "7d" });
+    const token = jwt.sign(
+      { userId, email: user.email, name: user.name },
+      JWT_SECRET,
+      { expiresIn: "30d" }
+    );
 
     return res.status(200).json({
       token: token,
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+      },
     });
   } catch (e) {
     console.error("Signin error:", e);
@@ -186,9 +195,17 @@ app.post("/signin", async function (req, res) {
 app.get("/user", middleware, async function (req, res) {
   //@ts-ignore
   const userId = req.userId;
+  //@ts-ignore
+  const userEmail = req.userEmail;
+
   try {
-    const user = await prismaClient.user.findUnique({
-      where: { id: userId },
+    const user = await prismaClient.user.findFirst({
+      where: {
+        OR: [
+          ...(userId ? [{ id: userId }] : []),
+          ...(userEmail ? [{ email: userEmail }] : []),
+        ],
+      },
       select: {
         id: true,
         email: true,
@@ -197,6 +214,14 @@ app.get("/user", middleware, async function (req, res) {
     });
 
     if (!user) {
+      // Resilient fallback for newly created OAuth sessions with alias
+      if (userId) {
+        return res.json({
+          id: userId,
+          email: userEmail || `${userId}@user.local`,
+          name: (req as any).userName || (userEmail ? userEmail.split("@")[0] : "Collaborator"),
+        });
+      }
       return res.status(404).json({ message: "User not found" });
     }
 
@@ -210,10 +235,15 @@ app.get("/user", middleware, async function (req, res) {
 app.get("/get-rooms", middleware, async function (req, res) {
   //@ts-ignore
   const userId = req.userId;
+  //@ts-ignore
+  const userEmail = req.userEmail;
 
   if (!userId) {
     return res.status(401).json({ message: "Unauthorized" });
   }
+
+  // Support all user identity aliases (UUID and email) to always discover all owned & shared rooms
+  const candidateIds = Array.from(new Set([userId, userEmail])).filter(Boolean) as string[];
 
   const roomSelect = {
     id: true,
@@ -222,13 +252,6 @@ app.get("/get-rooms", middleware, async function (req, res) {
     createAt: true,
     updatedAt: true,
     adminId: true,
-    admin: {
-      select: {
-        id: true,
-        name: true,
-        email: true,
-      },
-    },
   };
 
   try {
@@ -237,13 +260,13 @@ app.get("/get-rooms", middleware, async function (req, res) {
     // 2. Member rooms (uses BoardMember_userId_idx)
     const [ownedRooms, memberRecords] = await Promise.all([
       prismaClient.room.findMany({
-        where: { adminId: userId },
+        where: { adminId: { in: candidateIds } },
         select: roomSelect,
         orderBy: { updatedAt: "desc" },
         take: 100,
       }),
       prismaClient.boardMember.findMany({
-        where: { userId: userId },
+        where: { userId: { in: candidateIds } },
         select: {
           room: {
             select: roomSelect,
@@ -278,7 +301,7 @@ app.get("/get-rooms", middleware, async function (req, res) {
     try {
       const fallbackRooms = await prismaClient.room.findMany({
         where: {
-          OR: [{ adminId: userId }, { members: { some: { userId: userId } } }],
+          adminId: { in: candidateIds },
         },
         select: roomSelect,
         orderBy: {

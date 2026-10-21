@@ -1,6 +1,7 @@
 import type { NextAuthOptions } from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
 import GitHubProvider from "next-auth/providers/github";
+import CredentialsProvider from "next-auth/providers/credentials";
 import jwt from "jsonwebtoken";
 
 const secret =
@@ -25,6 +26,52 @@ async function storeGitHubConnection(userId: string, accessToken: string) {
 
 export const authOptions: NextAuthOptions = {
   providers: [
+    CredentialsProvider({
+      id: "credentials",
+      name: "Credentials",
+      credentials: {
+        email: { label: "Email", type: "email", placeholder: "developer@example.com" },
+        password: { label: "Password", type: "password" },
+      },
+      async authorize(credentials) {
+        if (!credentials?.email || !credentials?.password) {
+          throw new Error("Please enter both email and password");
+        }
+
+        const username = credentials.email.trim();
+        const password = credentials.password;
+
+        try {
+          const res = await fetch(`${BACKEND_URL}/signin`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ username, password }),
+          });
+
+          if (!res.ok) {
+            const errData = await res.json().catch(() => ({}));
+            throw new Error(errData.message || "Invalid email or password");
+          }
+
+          const data = await res.json();
+          if (!data?.token) {
+            throw new Error("Authentication failed: No token received");
+          }
+
+          const decoded = jwt.decode(data.token) as any;
+          const userId = decoded?.userId || decoded?.id || decoded?.sub;
+
+          return {
+            id: userId,
+            email: username,
+            name: decoded?.name || username.split("@")[0],
+            accessToken: data.token,
+          } as any;
+        } catch (err: any) {
+          throw new Error(err.message || "Sign in failed");
+        }
+      },
+    }),
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID || "",
       clientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
@@ -61,20 +108,36 @@ export const authOptions: NextAuthOptions = {
         token.email = user.email;
         token.name = user.name;
 
-        // Sign a valid JWT token recognizable by backend & websocket services
+        if ((user as any).accessToken) {
+          token.accessToken = (user as any).accessToken;
+        } else {
+          // Sign a valid JWT token recognizable by backend & websocket services
+          token.accessToken = jwt.sign(
+            {
+              userId: user.id || token.sub,
+              email: user.email,
+              name: user.name,
+            },
+            secret,
+            { expiresIn: "30d" }
+          );
+        }
+      }
+
+      // Guarantee token.accessToken is always present on token
+      if (!token.accessToken && (token.id || token.sub)) {
         token.accessToken = jwt.sign(
           {
-            userId: user.id || token.sub,
-            email: user.email,
-            name: user.name,
+            userId: token.id || token.sub,
+            email: token.email,
+            name: token.name,
           },
           secret,
           { expiresIn: "30d" }
         );
       }
+
       if (account?.provider === "github" && account.access_token) {
-        // Forward the GitHub token to the backend once, over the server-to-server
-        // connection endpoint; it is never kept in the browser-visible session.
         await storeGitHubConnection(token.id as string, account.access_token).catch(
           (error) => console.error("GitHub connection store failed:", error),
         );

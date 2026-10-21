@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import axios from "axios";
 import { BACKEND_URL } from "@/config";
 import Link from "next/link";
-import { getAuthToken } from "@/lib/auth";
+import { getAuthToken, getLocalAuthToken } from "@/lib/auth";
+import { useSession } from "next-auth/react";
 import { Pencil, Plus, ArrowLeft, ArrowRight, Sparkles } from "lucide-react";
 
 export default function CreateRoom() {
@@ -13,14 +14,15 @@ export default function CreateRoom() {
   const [roomId, setRoomId] = useState("");
   const [error, setError] = useState("");
   const router = useRouter();
+  const { status } = useSession();
 
   useEffect(() => {
-    getAuthToken().then((token) => {
-      if (!token) {
-        router.push("/signin");
-      }
-    });
-  }, [router]);
+    if (status === "loading") return;
+    const local = getLocalAuthToken();
+    if (!local && status === "unauthenticated") {
+      router.push("/signin");
+    }
+  }, [router, status]);
 
   const handleCreate = async () => {
     const trimmedId = roomId.trim();

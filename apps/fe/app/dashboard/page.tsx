@@ -20,7 +20,7 @@ import {
   ArrowRight 
 } from "lucide-react";
 import { useSession } from "next-auth/react";
-import { getAuthToken, removeLocalAuthToken } from "@/lib/auth";
+import { getAuthToken, getLocalAuthToken, setLocalAuthToken, removeLocalAuthToken } from "@/lib/auth";
 
 type User = {
   id: string | number;
@@ -80,14 +80,33 @@ function RoomCard({ room, onJoin }: { room: Room; onJoin: (slug: string) => void
 
 export default function Dashboard() {
   const router = useRouter();
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
   const [user, setUser] = useState<User | null>(null);
   const [rooms, setRooms] = useState<Room[]>([]);
   const [loadingRooms, setLoadingRooms] = useState(true);
   const [search, setSearch] = useState("");
 
   useEffect(() => {
-    // If session user exists, populate immediately
+    // 1. Never redirect while NextAuth is still hydrating session
+    if (status === "loading") {
+      return;
+    }
+
+    const localToken = getLocalAuthToken();
+    const isAuthed = status === "authenticated" || Boolean(localToken);
+
+    // Only bounce to signin if definitely unauthenticated (not loading, no session, no local token)
+    if (!isAuthed && status === "unauthenticated") {
+      router.push("/signin");
+      return;
+    }
+
+    // Immediately synchronize session access token to local storage
+    if ((session as any)?.accessToken) {
+      setLocalAuthToken((session as any).accessToken);
+    }
+
+    // Immediately populate user from session if available
     if (session?.user && !user) {
       setUser({
         id: (session.user as any).id || "user",
@@ -117,55 +136,58 @@ export default function Dashboard() {
 
     async function fetchData() {
       const token = await getAuthToken();
-      if (!token && !session?.user) {
-        router.push("/signin");
+      if (!token) {
+        if (status === "unauthenticated") {
+          router.push("/signin");
+        }
+        setLoadingRooms(false);
         return;
       }
 
-      if (token) {
-        // Parallelize user info and rooms list for 2x faster load times
-        const [userResResult, roomResResult] = await Promise.allSettled([
-          axios.get(`${BACKEND_URL}/user`, {
-            headers: { Authorization: `Bearer ${token}` },
-            timeout: 6000,
-          }),
-          axios.get(`${BACKEND_URL}/get-rooms`, {
-            headers: { Authorization: `Bearer ${token}` },
-            timeout: 8000,
-          }),
-        ]);
+      // Parallelize user info and rooms list for fast sub-second load times
+      const [userResResult, roomResResult] = await Promise.allSettled([
+        axios.get(`${BACKEND_URL}/user`, {
+          headers: { Authorization: `Bearer ${token}` },
+          timeout: 6000,
+        }),
+        axios.get(`${BACKEND_URL}/get-rooms`, {
+          headers: { Authorization: `Bearer ${token}` },
+          timeout: 8000,
+        }),
+      ]);
 
-        if (userResResult.status === "fulfilled" && userResResult.value.data) {
-          const userData = userResResult.value.data as User;
-          setUser(userData);
-          try {
-            localStorage.setItem("sketio_cached_user", JSON.stringify(userData));
-          } catch {}
-        } else if (!session?.user && !user) {
-          router.push("/signin");
-          return;
-        }
-
-        if (roomResResult.status === "fulfilled") {
-          const data = roomResResult.value.data;
-          const safeRooms: Room[] = Array.isArray(data?.rooms)
-            ? data.rooms
-            : Array.isArray(data)
-            ? data
-            : [];
-          setRooms(safeRooms);
-          try {
-            localStorage.setItem("sketio_cached_rooms", JSON.stringify(safeRooms));
-          } catch {}
-        }
-        setLoadingRooms(false);
-      } else {
-        setLoadingRooms(false);
+      if (userResResult.status === "fulfilled" && userResResult.value.data) {
+        const userData = userResResult.value.data as User;
+        setUser(userData);
+        try {
+          localStorage.setItem("sketio_cached_user", JSON.stringify(userData));
+        } catch {}
+      } else if (!user && session?.user) {
+        setUser({
+          id: (session.user as any).id || "user",
+          name: session.user.name || "Collaborator",
+          email: session.user.email || "",
+        });
       }
+
+      if (roomResResult.status === "fulfilled") {
+        const data = roomResResult.value.data;
+        const safeRooms: Room[] = Array.isArray(data)
+          ? data
+          : Array.isArray(data?.rooms)
+          ? data.rooms
+          : [];
+        setRooms(safeRooms);
+        try {
+          localStorage.setItem("sketio_cached_rooms", JSON.stringify(safeRooms));
+        } catch {}
+      }
+
+      setLoadingRooms(false);
     }
 
     fetchData();
-  }, [router, session]);
+  }, [router, session, status]);
 
   const handleSignOut = () => {
     removeLocalAuthToken();

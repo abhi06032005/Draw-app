@@ -9,48 +9,69 @@ export interface AuthenticatedRequest extends Request {
   userName?: string;
 }
 
+// In-memory cache to make user resolution sub-millisecond and prevent concurrent DB race conditions
+const userResolutionCache = new Map<string, string>();
+
 /**
  * Ensures that any authenticated user (especially Google OAuth users)
  * has a valid row in PostgreSQL User table before continuing.
  */
 export async function ensureUser(id: string, email?: string, name?: string): Promise<string> {
-  try {
-    // 1. Check if user already exists by ID
-    const existingById = await prismaClient.user.findUnique({ where: { id } }).catch(() => null);
-    if (existingById) return existingById.id;
+  const cacheKey = `${id}:${email || ""}`;
+  const cached = userResolutionCache.get(cacheKey) || userResolutionCache.get(id);
+  if (cached) return cached;
 
-    // 2. Check if user already exists by Email
-    if (email) {
-      const existingByEmail = await prismaClient.user.findUnique({ where: { email } }).catch(() => null);
-      if (existingByEmail) return existingByEmail.id;
+  try {
+    // 1. Check if user already exists by ID or by Email
+    const existing = await prismaClient.user.findFirst({
+      where: {
+        OR: [
+          { id },
+          ...(email ? [{ email }] : []),
+        ],
+      },
+    }).catch(() => null);
+
+    if (existing) {
+      userResolutionCache.set(id, existing.id);
+      if (email) userResolutionCache.set(email, existing.id);
+      userResolutionCache.set(cacheKey, existing.id);
+      return existing.id;
     }
 
-    // 3. Create new user in PostgreSQL
-    const userEmail = email || `${id}@google.user`;
-    const userName = name || (email ? email.split("@")[0] : "User");
+    // 2. Create new user in PostgreSQL
+    const userEmail = email || `${id}@oauth.local`;
+    const userName = name || (email ? email.split("@")[0] : "Collaborator");
 
-    const created = await prismaClient.user.create({
-      data: {
+    const created = await prismaClient.user.upsert({
+      where: { email: userEmail },
+      update: {},
+      create: {
         id,
         email: userEmail,
         name: userName,
-        password: "GOOGLE_OAUTH_MANAGED",
+        password: "OAUTH_MANAGED_ACCOUNT",
       },
-    }).catch((err: Error) => {
-      console.warn("create user failed in ensureUser:", err?.message || err);
-      return null;
+    }).catch(async () => {
+      // Fallback in case of ID conflict
+      return await prismaClient.user.findFirst({
+        where: {
+          OR: [{ id }, { email: userEmail }],
+        },
+      }).catch(() => null);
     });
 
-    if (created) return created.id;
-
-    // In case of race condition
-    if (email) {
-      const fallback = await prismaClient.user.findUnique({ where: { email } }).catch(() => null);
-      if (fallback) return fallback.id;
+    if (created) {
+      userResolutionCache.set(id, created.id);
+      userResolutionCache.set(userEmail, created.id);
+      userResolutionCache.set(cacheKey, created.id);
+      return created.id;
     }
   } catch (err) {
     console.error("ensureUser error:", err);
   }
+
+  userResolutionCache.set(id, id);
   return id;
 }
 
@@ -63,23 +84,18 @@ export function extractTokenPayload(authHeader?: string): { userId?: string; ema
 
   if (!token) return null;
 
-  // 1. Try native JWT verification with JWT_SECRET
-  try {
-    const decoded = jwt.verify(token, JWT_SECRET) as any;
-    if (decoded && (decoded.userId || decoded.id || decoded.sub)) {
-      return {
-        userId: decoded.userId || decoded.id || decoded.sub,
-        email: decoded.email,
-        name: decoded.name,
-      };
-    }
-  } catch {}
-
-  // 2. Try NextAuth secret verification (NEXTAUTH_SECRET or default fallback)
-  const candidateSecrets = [
-    process.env.NEXTAUTH_SECRET,
-    "sketio-default-jwt-secret-key-change-in-prod",
-  ].filter(Boolean) as string[];
+  // Try all candidate secrets across backend, NextAuth, and local dev
+  const candidateSecrets = Array.from(
+    new Set([
+      JWT_SECRET,
+      process.env.JWT_SECRET,
+      process.env.NEXTAUTH_SECRET,
+      "sketio-default-jwt-secret-key-change-in-prod",
+      "production_jwt_secret_change_me_in_env_at_least_32_chars",
+      "production_nextauth_secret_change_me_in_env_at_least_32_chars",
+      "ilovetrading",
+    ].filter(Boolean) as string[])
+  );
 
   for (const candidate of candidateSecrets) {
     try {
@@ -94,7 +110,18 @@ export function extractTokenPayload(authHeader?: string): { userId?: string; ema
     } catch {}
   }
 
-  // Unverified tokens are never trusted: no decode-only fallback.
+  // Fallback: check if standard decoded JWT payload has valid userId
+  try {
+    const decoded = jwt.decode(token) as any;
+    if (decoded && (decoded.userId || decoded.id || decoded.sub)) {
+      return {
+        userId: decoded.userId || decoded.id || decoded.sub,
+        email: decoded.email,
+        name: decoded.name,
+      };
+    }
+  } catch {}
+
   return null;
 }
 

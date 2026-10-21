@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { getAuthToken } from "@/lib/auth";
+import { getAuthToken, getLocalAuthToken } from "@/lib/auth";
+import { useSession } from "next-auth/react";
 import { Pencil, LogIn, ArrowLeft, ArrowRight, Sparkles, Lightbulb } from "lucide-react";
 
 export default function Joinroom() {
@@ -11,14 +12,15 @@ export default function Joinroom() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const router = useRouter();
+  const { status } = useSession();
 
   useEffect(() => {
-    getAuthToken().then((token) => {
-      if (!token) {
-        router.push("/signin");
-      }
-    });
-  }, [router]);
+    if (status === "loading") return;
+    const local = getLocalAuthToken();
+    if (!local && status === "unauthenticated") {
+      router.push("/signin");
+    }
+  }, [router, status]);
 
   const handleJoin = () => {
     const trimmed = roomId.trim();

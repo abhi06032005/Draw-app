@@ -1,20 +1,127 @@
 "use client";
 
-import React, { useState, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+import React, { useState, useEffect, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Loader from "@/components/Loader";
 import Link from "next/link";
-import { signIn } from "next-auth/react";
-import { Pencil, Sparkles, ShieldCheck, Zap, Users } from "lucide-react";
+import { signIn, useSession } from "next-auth/react";
+import { BACKEND_URL } from "@/config";
+import axios from "axios";
+import { getLocalAuthToken, setLocalAuthToken } from "@/lib/auth";
+import { Pencil, Sparkles, ShieldCheck, Mail, Lock, User as UserIcon, ArrowRight } from "lucide-react";
 
 function SigninContent() {
-  const [clicked, setClicked] = useState(false);
+  const router = useRouter();
   const searchParams = useSearchParams();
-  const errorParam = searchParams.get("error");
+  const { data: session, status } = useSession();
+
+  const initialMode = searchParams.get("mode") === "signup" ? "signup" : "signin";
+  const [mode, setMode] = useState<"signin" | "signup">(initialMode);
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
+  const [error, setError] = useState<string | null>(searchParams.get("error"));
+
+  // If already authenticated, redirect to /dashboard immediately
+  useEffect(() => {
+    if (status === "authenticated" || Boolean(getLocalAuthToken())) {
+      router.replace("/dashboard");
+    }
+  }, [status, router]);
 
   const handleGoogleSignIn = () => {
-    setClicked(true);
+    setGoogleLoading(true);
     signIn("google", { callbackUrl: "/dashboard" });
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+
+    const cleanEmail = email.trim();
+    const cleanPassword = password.trim();
+
+    if (!cleanEmail || !cleanPassword) {
+      setError("Please fill in both email and password.");
+      return;
+    }
+
+    if (cleanPassword.length < 6) {
+      setError("Password must be at least 6 characters.");
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      if (mode === "signup") {
+        const cleanName = name.trim() || cleanEmail.split("@")[0];
+        // 1. Create account on backend
+        await axios.post(`${BACKEND_URL}/signup`, {
+          username: cleanEmail,
+          password: cleanPassword,
+          name: cleanName,
+        });
+
+        // 2. Sign in with NextAuth Credentials
+        const res = await signIn("credentials", {
+          email: cleanEmail,
+          password: cleanPassword,
+          redirect: false,
+        });
+
+        if (res?.error) {
+          setError(res.error);
+          setLoading(false);
+          return;
+        }
+
+        // 3. Fallback direct backend signin to cache token immediately
+        try {
+          const loginRes = await axios.post(`${BACKEND_URL}/signin`, {
+            username: cleanEmail,
+            password: cleanPassword,
+          });
+          if (loginRes.data?.token) {
+            setLocalAuthToken(loginRes.data.token);
+          }
+        } catch {}
+
+        router.replace("/dashboard");
+      } else {
+        // Sign In Flow
+        const res = await signIn("credentials", {
+          email: cleanEmail,
+          password: cleanPassword,
+          redirect: false,
+        });
+
+        if (res?.error) {
+          setError("Invalid email or password. Please try again.");
+          setLoading(false);
+          return;
+        }
+
+        // Cache token directly from backend to avoid any session delay
+        try {
+          const loginRes = await axios.post(`${BACKEND_URL}/signin`, {
+            username: cleanEmail,
+            password: cleanPassword,
+          });
+          if (loginRes.data?.token) {
+            setLocalAuthToken(loginRes.data.token);
+          }
+        } catch {}
+
+        router.replace("/dashboard");
+      }
+    } catch (err: any) {
+      setLoading(false);
+      const msg = err.response?.data?.message || err.message || "Authentication failed";
+      setError(msg);
+    }
   };
 
   return (
@@ -72,7 +179,7 @@ function SigninContent() {
 
       <div className="w-full max-w-md relative z-10">
         {/* Brand Logo */}
-        <Link href="/" className="flex items-center justify-center gap-3 mb-8">
+        <Link href="/" className="flex items-center justify-center gap-3 mb-6">
           <div className="w-11 h-11 bg-[#ffc531] rounded-xl border-[3px] border-[#17140d] memphis-shadow-sm flex items-center justify-center">
             <Pencil size={22} strokeWidth={2.5} className="text-[#17140d]" />
           </div>
@@ -81,24 +188,56 @@ function SigninContent() {
           </span>
         </Link>
 
-        {/* Memphis Google Auth Card */}
-        <div className="memphis-card p-8 bg-white text-center">
-          <div className="mb-6">
-            <div className="w-12 h-12 bg-[#ff5b57]/15 border-2 border-[#17140d] rounded-2xl mx-auto flex items-center justify-center mb-3">
-              <Sparkles size={22} className="text-[#ff5b57]" />
+        {/* Memphis Auth Card */}
+        <div className="memphis-card p-7 bg-white text-center">
+          <div className="mb-5">
+            <div className="w-11 h-11 bg-[#ff5b57]/15 border-2 border-[#17140d] rounded-2xl mx-auto flex items-center justify-center mb-2.5">
+              <Sparkles size={20} className="text-[#ff5b57]" />
             </div>
-            <h1 className="font-display font-black text-3xl text-[#17140d] mb-2">
-              Get Started for Free
+            <h1 className="font-display font-black text-2xl text-[#17140d] mb-1">
+              {mode === "signin" ? "Welcome Back!" : "Create an Account"}
             </h1>
             <p className="text-xs text-[#17140d]/70 font-medium max-w-xs mx-auto">
-              Real-time AI collaborative whiteboard. Instant 1-click access with your Google account.
+              Real-time collaborative whiteboard & AI architecture generator.
             </p>
           </div>
 
+          {/* Mode Switcher Tabs */}
+          <div className="grid grid-cols-2 p-1 bg-[#f5efe2] border-2 border-[#17140d] rounded-xl mb-5">
+            <button
+              type="button"
+              onClick={() => {
+                setMode("signin");
+                setError(null);
+              }}
+              className={`py-2 text-xs font-black rounded-lg transition-all cursor-pointer ${
+                mode === "signin"
+                  ? "bg-white text-[#17140d] border border-[#17140d] shadow-sm"
+                  : "text-[#17140d]/60 hover:text-[#17140d]"
+              }`}
+            >
+              Sign In
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setMode("signup");
+                setError(null);
+              }}
+              className={`py-2 text-xs font-black rounded-lg transition-all cursor-pointer ${
+                mode === "signup"
+                  ? "bg-white text-[#17140d] border border-[#17140d] shadow-sm"
+                  : "text-[#17140d]/60 hover:text-[#17140d]"
+              }`}
+            >
+              Create Account
+            </button>
+          </div>
+
           {/* Error Notice */}
-          {errorParam && (
-            <div className="bg-[#ff5b57]/15 border-2 border-[#17140d] rounded-xl px-4 py-3 text-xs font-bold text-[#ff5b57] mb-5 text-left">
-              Authentication failed. Please verify your Google account or try again.
+          {error && (
+            <div className="bg-[#ff5b57]/15 border-2 border-[#17140d] rounded-xl px-4 py-2.5 text-xs font-bold text-[#ff5b57] mb-4 text-left">
+              {error}
             </div>
           )}
 
@@ -106,10 +245,10 @@ function SigninContent() {
           <button
             type="button"
             onClick={handleGoogleSignIn}
-            disabled={clicked}
-            className="w-full py-4 px-5 rounded-2xl border-[3px] border-[#17140d] bg-white font-black text-base text-[#17140d] hover:bg-[#f5efe2] transition-all flex items-center justify-center gap-3 memphis-btn disabled:opacity-60 mb-6 cursor-pointer"
+            disabled={googleLoading || loading}
+            className="w-full py-3 px-4 rounded-xl border-[2.5px] border-[#17140d] bg-white font-black text-sm text-[#17140d] hover:bg-[#f5efe2] transition-all flex items-center justify-center gap-2.5 memphis-btn disabled:opacity-60 mb-4 cursor-pointer"
           >
-            <svg width="22" height="22" viewBox="0 0 24 24">
+            <svg width="20" height="20" viewBox="0 0 24 24">
               <path
                 fill="#4285F4"
                 d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.8-2.4 3.66v3.05h3.88c2.27-2.09 3.66-5.17 3.66-9.15z"
@@ -127,38 +266,109 @@ function SigninContent() {
                 d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.26 2.57 1.24 6.58l4.04 3.15c.95-2.83 3.6-4.98 6.72-4.98z"
               />
             </svg>
-            {clicked ? "Connecting to Google…" : "Continue with Google"}
+            {googleLoading ? "Connecting to Google…" : "Continue with Google"}
           </button>
 
-          {/* Features Checklist */}
-          <div className="bg-[#f5efe2]/60 border-2 border-[#17140d]/10 rounded-xl p-4 text-left space-y-2.5 mb-6">
-            <div className="flex items-center gap-2.5 text-xs font-bold text-[#17140d]">
-              <div className="w-5 h-5 rounded-md bg-[#12b3a4] text-white flex items-center justify-center text-[10px]">
-                ✓
-              </div>
-              <span>Infinite canvas with real-time multiplayer</span>
-            </div>
-            <div className="flex items-center gap-2.5 text-xs font-bold text-[#17140d]">
-              <div className="w-5 h-5 rounded-md bg-[#ffc531] text-[#17140d] flex items-center justify-center text-[10px]">
-                ✓
-              </div>
-              <span>AI Diagram & System Architecture Generator</span>
-            </div>
-            <div className="flex items-center gap-2.5 text-xs font-bold text-[#17140d]">
-              <div className="w-5 h-5 rounded-md bg-[#6b5be6] text-white flex items-center justify-center text-[10px]">
-                ✓
-              </div>
-              <span>End-to-end encrypted room sessions</span>
-            </div>
+          {/* Divider */}
+          <div className="flex items-center gap-3 my-4">
+            <div className="flex-1 h-[2px] bg-[#17140d]/15" />
+            <span className="text-[11px] font-black uppercase text-[#17140d]/40 tracking-wider">
+              Or with email
+            </span>
+            <div className="flex-1 h-[2px] bg-[#17140d]/15" />
           </div>
 
-          <div className="pt-4 border-t-2 border-[#17140d]/10 flex items-center justify-center gap-2 text-xs font-medium text-[#17140d]/60">
-            <ShieldCheck size={14} className="text-[#12b3a4]" /> Secured by Google Identity Services
+          {/* Email / Password Form */}
+          <form onSubmit={handleSubmit} className="space-y-3 text-left">
+            {mode === "signup" && (
+              <div>
+                <label className="block text-xs font-black text-[#17140d] mb-1">
+                  Name
+                </label>
+                <div className="relative">
+                  <UserIcon
+                    size={16}
+                    className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#17140d]/40"
+                  />
+                  <input
+                    type="text"
+                    required
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="Alex Morgan"
+                    className="w-full pl-10 pr-4 py-2.5 rounded-xl border-2 border-[#17140d] text-xs font-bold text-[#17140d] placeholder-[#17140d]/40 focus:outline-none focus:ring-2 focus:ring-[#6b5be6] bg-white"
+                  />
+                </div>
+              </div>
+            )}
+
+            <div>
+              <label className="block text-xs font-black text-[#17140d] mb-1">
+                Email Address
+              </label>
+              <div className="relative">
+                <Mail
+                  size={16}
+                  className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#17140d]/40"
+                />
+                <input
+                  type="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="name@example.com"
+                  className="w-full pl-10 pr-4 py-2.5 rounded-xl border-2 border-[#17140d] text-xs font-bold text-[#17140d] placeholder-[#17140d]/40 focus:outline-none focus:ring-2 focus:ring-[#6b5be6] bg-white"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-black text-[#17140d] mb-1">
+                Password
+              </label>
+              <div className="relative">
+                <Lock
+                  size={16}
+                  className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#17140d]/40"
+                />
+                <input
+                  type="password"
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  className="w-full pl-10 pr-4 py-2.5 rounded-xl border-2 border-[#17140d] text-xs font-bold text-[#17140d] placeholder-[#17140d]/40 focus:outline-none focus:ring-2 focus:ring-[#6b5be6] bg-white"
+                />
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading || googleLoading}
+              className="w-full mt-2 py-3.5 px-4 rounded-xl border-[2.5px] border-[#17140d] bg-[#6b5be6] text-white font-black text-sm hover:bg-[#5b4bd6] transition-all flex items-center justify-center gap-2 memphis-btn disabled:opacity-60 cursor-pointer"
+            >
+              {loading ? (
+                "Please wait…"
+              ) : mode === "signin" ? (
+                <>
+                  Sign In <ArrowRight size={15} />
+                </>
+              ) : (
+                <>
+                  Create Account <ArrowRight size={15} />
+                </>
+              )}
+            </button>
+          </form>
+
+          {/* Trust Badge */}
+          <div className="pt-4 mt-5 border-t-2 border-[#17140d]/10 flex items-center justify-center gap-2 text-[11px] font-bold text-[#17140d]/60">
+            <ShieldCheck size={14} className="text-[#12b3a4]" /> Fast, encrypted JWT session authentication
           </div>
         </div>
       </div>
 
-      {clicked && <Loader />}
+      {(googleLoading || loading) && <Loader />}
     </div>
   );
 }
