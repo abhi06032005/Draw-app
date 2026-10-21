@@ -19,6 +19,7 @@ import axios from "axios";
 
 import { BACKEND_URL } from "@/config";
 import { getAuthToken, getGitHubAccessToken } from "@/lib/auth";
+import { signIn } from "next-auth/react";
 import type { AnalysisDepth, ArchitectureGraph } from "@/lib/architectureTypes";
 
 interface GitHubRepositoryModalProps {
@@ -390,19 +391,28 @@ export function GitHubRepositoryModal({
                     </span>
                   ) : (
                     <span className="opacity-70">
-                      Public repos supported (60 req/hr unauthenticated limit).
+                      Public repos supported. Connect GitHub for private repos & 5,000 req/hr.
                     </span>
                   )}
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                {gitHubStatus?.connected && (
+                {gitHubStatus?.connected ? (
                   <button
                     onClick={disconnectGitHub}
                     type="button"
                     className="text-[11px] font-medium text-rose-400 hover:underline"
                   >
                     Disconnect
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => signIn("github")}
+                    type="button"
+                    className="flex items-center gap-1 text-[11px] font-semibold text-emerald-400 hover:text-emerald-300"
+                  >
+                    <Github size={12} />
+                    <span>Connect GitHub</span>
                   </button>
                 )}
                 <button

@@ -50,17 +50,36 @@ export async function saveUserGitHubToken(
   token: string,
   githubLogin?: string,
 ) {
+  let resolvedLogin = githubLogin;
+  if (!resolvedLogin) {
+    try {
+      const res = await fetch("https://api.github.com/user", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: "application/vnd.github+json",
+          "User-Agent": "sketio-token-vault",
+        },
+      });
+      if (res.ok) {
+        const data: any = await res.json();
+        if (data?.login) resolvedLogin = data.login;
+      }
+    } catch {
+      // Ignore network errors during username lookup
+    }
+  }
+
   const encrypted = encryptGitHubToken(token);
   return await prismaClient.githubConnection.upsert({
     where: { userId_provider: { userId, provider: "github" } },
     create: {
       userId,
       provider: "github",
-      githubLogin: githubLogin || null,
+      githubLogin: resolvedLogin || null,
       encryptedToken: encrypted,
     },
     update: {
-      githubLogin: githubLogin || null,
+      githubLogin: resolvedLogin || null,
       encryptedToken: encrypted,
       updatedAt: new Date(),
     },

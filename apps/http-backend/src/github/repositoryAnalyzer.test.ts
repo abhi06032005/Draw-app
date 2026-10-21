@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { analyzeRepository } from "./repositoryAnalyzer";
-import { parseGitHubRepositoryUrl } from "./githubClient";
+import { GitHubClient, parseGitHubRepositoryUrl } from "./githubClient";
+import zlib from "node:zlib";
 
 class FakeGitHubClient {
   async getRepository() {
@@ -217,4 +218,84 @@ test("analyzes Python repositories with routes, models, and snippets", async () 
   assert.equal(modelNode.type, "database");
   assert.ok(modelNode.technology?.includes("Python ORM"));
 });
+
+test("GitHubClient seamlessly falls back when api.github.com 60 req/hr rate limit is reached", async () => {
+  // Create a minimal 512-byte tar header for package.json
+  const header = Buffer.alloc(512, 0);
+  header.write("package.json", 0, "utf8");
+  header.write("0000100 ", 100, 8, "utf8"); // mode
+  header.write("0000000 ", 108, 8, "utf8"); // uid
+  header.write("0000000 ", 116, 8, "utf8"); // gid
+  const content = '{"name":"mock-pkg","version":"1.0.0"}';
+  const sizeOctal = content.length.toString(8).padStart(11, "0") + " ";
+  header.write(sizeOctal, 124, 12, "utf8");
+  header.write("00000000000 ", 136, 12, "utf8"); // mtime
+  header.write("        ", 148, 8, "utf8"); // checksum placeholder
+  header[156] = 48; // '0' regular file
+  // Calculate checksum
+  let checksum = 0;
+  for (let i = 0; i < 512; i++) checksum += header[i]!;
+  header.write(checksum.toString(8).padStart(6, "0") + "\0 ", 148, 8, "utf8");
+
+  const contentBlock = Buffer.alloc(512, 0);
+  contentBlock.write(content, 0, "utf8");
+  const tarArchive = Buffer.concat([header, contentBlock, Buffer.alloc(1024, 0)]);
+  const gzippedTar = zlib.gzipSync(tarArchive);
+
+  const mockFetch = async (input: RequestInfo | URL) => {
+    const url = input.toString();
+    if (url.includes("api.github.com")) {
+      return new Response(
+        JSON.stringify({ message: "API rate limit exceeded for 127.0.0.1" }),
+        {
+          status: 403,
+          headers: {
+            "Content-Type": "application/json",
+            "x-ratelimit-remaining": "0",
+            "x-ratelimit-reset": "1730000000",
+          },
+        },
+      );
+    }
+    if (url.includes("info/refs")) {
+      return new Response(
+        "001e# service=git-upload-pack\n00000159ab0d927f53f6e1b5dcfc2c4e9fc438bdb5ffb678 HEAD\0symref=HEAD:refs/heads/main\n0044ab0d927f53f6e1b5dcfc2c4e9fc438bdb5ffb678 refs/heads/main\n0000",
+        { status: 200, headers: { "Content-Type": "text/plain" } },
+      );
+    }
+    if (url.includes("codeload.github.com")) {
+      return new Response(gzippedTar, {
+        status: 200,
+        headers: { "Content-Type": "application/x-gzip" },
+      });
+    }
+    return new Response("Not found", { status: 404 });
+  };
+
+  const client = new GitHubClient({
+    fetchImpl: mockFetch as any,
+  });
+
+  // Verify getRepository succeeds via fallback despite 403
+  const repo = await client.getRepository("acme", "resilient-app");
+  assert.equal(repo.name, "resilient-app");
+  assert.equal(repo.default_branch, "main");
+
+  // Verify getCommitSha succeeds via fallback despite 403
+  const sha = await client.getCommitSha("acme", "resilient-app", "main");
+  assert.equal(sha, "ab0d927f53f6e1b5dcfc2c4e9fc438bdb5ffb678");
+
+  // Verify getTree succeeds via archive fallback despite 403
+  const tree = await client.getTree("acme", "resilient-app", "main");
+  assert.equal(tree.tree.length, 1);
+  assert.equal(tree.tree[0]?.path, "package.json");
+
+  // Verify getFileContent returns archive content directly
+  const fileContent = await client.getFileContent("acme", "resilient-app", {
+    path: "package.json",
+    sha: "archive-37",
+  });
+  assert.equal(fileContent, content);
+});
+
 

@@ -11,7 +11,16 @@ const secret =
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:4000";
 
-async function storeGitHubConnection(userId: string, accessToken: string) {
+const githubClientId =
+  process.env.GITHUB_CLIENT_ID || process.env.GITHUB_ID || "";
+const githubClientSecret =
+  process.env.GITHUB_CLIENT_SECRET || process.env.GITHUB_SECRET || "";
+
+async function storeGitHubConnection(
+  userId: string,
+  accessToken: string,
+  githubLogin?: string,
+) {
   const signed = jwt.sign({ userId }, secret, { expiresIn: "5m" });
   const response = await fetch(`${BACKEND_URL}/github/connection`, {
     method: "PUT",
@@ -19,9 +28,10 @@ async function storeGitHubConnection(userId: string, accessToken: string) {
       "Content-Type": "application/json",
       Authorization: `Bearer ${signed}`,
     },
-    body: JSON.stringify({ accessToken }),
+    body: JSON.stringify({ accessToken, githubLogin }),
   });
-  if (!response.ok) throw new Error(`Backend rejected GitHub connection (${response.status})`);
+  if (!response.ok)
+    throw new Error(`Backend rejected GitHub connection (${response.status})`);
 }
 
 export const authOptions: NextAuthOptions = {
@@ -83,12 +93,16 @@ export const authOptions: NextAuthOptions = {
         },
       },
     }),
-    ...(process.env.GITHUB_CLIENT_ID && process.env.GITHUB_CLIENT_SECRET
+    ...(githubClientId && githubClientSecret
       ? [
           GitHubProvider({
-            clientId: process.env.GITHUB_CLIENT_ID,
-            clientSecret: process.env.GITHUB_CLIENT_SECRET,
-            authorization: { params: { scope: "read:user repo" } },
+            clientId: githubClientId,
+            clientSecret: githubClientSecret,
+            authorization: {
+              params: {
+                scope: "read:user user:email repo",
+              },
+            },
           }),
         ]
       : []),
@@ -102,11 +116,16 @@ export const authOptions: NextAuthOptions = {
     error: "/signin",
   },
   callbacks: {
-    async jwt({ token, user, account }) {
+    async jwt({ token, user, account, profile }) {
       if (user) {
         token.id = user.id;
-        token.email = user.email;
-        token.name = user.name;
+        token.email = user.email || (profile as any)?.email;
+        token.name =
+          user.name || (profile as any)?.name || (profile as any)?.login;
+
+        if (!token.email && (profile as any)?.login) {
+          token.email = `${(profile as any).login}@users.noreply.github.com`;
+        }
 
         if ((user as any).accessToken) {
           token.accessToken = (user as any).accessToken;
@@ -115,8 +134,8 @@ export const authOptions: NextAuthOptions = {
           token.accessToken = jwt.sign(
             {
               userId: user.id || token.sub,
-              email: user.email,
-              name: user.name,
+              email: token.email,
+              name: token.name,
             },
             secret,
             { expiresIn: "30d" }
@@ -138,8 +157,19 @@ export const authOptions: NextAuthOptions = {
       }
 
       if (account?.provider === "github" && account.access_token) {
-        await storeGitHubConnection(token.id as string, account.access_token).catch(
-          (error) => console.error("GitHub connection store failed:", error),
+        const githubLogin =
+          (profile as any)?.login ||
+          (user as any)?.name ||
+          (token.name as string) ||
+          undefined;
+        (token as any).githubAccessToken = account.access_token;
+        (token as any).githubLogin = githubLogin;
+        await storeGitHubConnection(
+          (token.id || token.sub) as string,
+          account.access_token,
+          githubLogin,
+        ).catch((error) =>
+          console.error("GitHub connection store failed:", error),
         );
         token.githubConnected = true;
       }
@@ -150,6 +180,8 @@ export const authOptions: NextAuthOptions = {
         (session.user as any).id = token.id || token.sub;
         (session as any).accessToken = token.accessToken;
         (session as any).githubConnected = Boolean(token.githubConnected);
+        (session as any).githubAccessToken = (token as any).githubAccessToken;
+        (session.user as any).githubLogin = (token as any).githubLogin;
       }
       return session;
     },
