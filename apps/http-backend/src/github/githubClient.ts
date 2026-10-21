@@ -122,6 +122,104 @@ export class GitHubClient {
     );
   }
 
+  /**
+   * Fetches raw file content from GitHub's raw CDN (raw.githubusercontent.com).
+   * Crucially, this does NOT consume the 60 requests/hr GitHub REST API rate limit!
+   */
+  async getRawFile(
+    owner: string,
+    repo: string,
+    revision: string,
+    path: string,
+  ): Promise<string> {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
+    const abortExternal = () => controller.abort();
+    this.signal?.addEventListener("abort", abortExternal, { once: true });
+
+    try {
+      const headers: Record<string, string> = {
+        "User-Agent": "sketio-architecture-importer",
+      };
+      if (this.token) {
+        headers.Authorization = `token ${this.token}`;
+      }
+
+      const encodedPath = path
+        .split("/")
+        .map((segment) => encodeURIComponent(segment))
+        .join("/");
+      const url = `https://raw.githubusercontent.com/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/${encodeURIComponent(revision)}/${encodedPath}`;
+      const response = await this.fetchImpl(url, {
+        headers,
+        signal: controller.signal,
+      });
+
+      if (!response.ok) {
+        throw new GitHubApiError(
+          `Raw file fetch returned status ${response.status}.`,
+          response.status,
+        );
+      }
+
+      return await response.text();
+    } catch (error) {
+      if (error instanceof GitHubApiError) throw error;
+      if (error instanceof Error && error.name === "AbortError") {
+        throw new GitHubApiError("GitHub raw request timed out.", 504);
+      }
+      throw new GitHubApiError("GitHub raw file could not be retrieved.", 502);
+    } finally {
+      clearTimeout(timeout);
+      this.signal?.removeEventListener("abort", abortExternal);
+    }
+  }
+
+  /**
+   * Resilient file content loader: uses CDN first (zero REST API quota consumed),
+   * with seamless fallback to GitHub Git Blobs API.
+   */
+  async getFileContent(
+    owner: string,
+    repo: string,
+    entry: { sha: string; path: string },
+    revision?: string,
+  ): Promise<string> {
+    // 1. If we have a commit / revision and file path, try raw CDN first
+    // This is virtually unlimited and immune to the 60 req/hr unauthenticated REST limit
+    if (revision && entry.path) {
+      try {
+        return await this.getRawFile(owner, repo, revision, entry.path);
+      } catch {
+        // Fall back to git blob API
+      }
+    }
+
+    // 2. Blobs API fallback (or when mock/fake client in tests provides getBlob)
+    try {
+      return await this.getBlob(owner, repo, entry.sha);
+    } catch (blobErr: any) {
+      // If blobs API gave 403 rate limit, try raw CDN one last time with HEAD
+      if (
+        blobErr instanceof GitHubApiError &&
+        blobErr.status === 403 &&
+        entry.path
+      ) {
+        try {
+          return await this.getRawFile(
+            owner,
+            repo,
+            revision || "HEAD",
+            entry.path,
+          );
+        } catch {
+          // Preserve original rate limit error
+        }
+      }
+      throw blobErr;
+    }
+  }
+
   private async request<T>(path: string): Promise<T> {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), this.timeoutMs);

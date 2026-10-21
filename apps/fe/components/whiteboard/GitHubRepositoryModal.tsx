@@ -55,7 +55,7 @@ export function GitHubRepositoryModal({
   const [branch, setBranch] = useState("");
   const [depth, setDepth] = useState<AnalysisDepth>("standard");
   const [layoutMode, setLayoutMode] =
-    useState<import("@/lib/architectureElements").ArchitectureLayoutMode>("high-level");
+    useState<import("@/lib/architectureElements").ArchitectureLayoutMode>("workflow");
   const [forceRefresh, setForceRefresh] = useState(false);
   const [stage, setStage] = useState(0);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -516,8 +516,9 @@ export function GitHubRepositoryModal({
             <span className="text-xs font-bold uppercase tracking-wider opacity-60">
               Canvas Layout Mode
             </span>
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
               {[
+                { id: "workflow", label: "Workflow Flow", desc: "Hub & spoke pipeline" },
                 { id: "high-level", label: "High-Level", desc: "Tiered system" },
                 { id: "dependency", label: "Dependencies", desc: "Directed graph" },
                 { id: "backend", label: "Backend", desc: "API to storage" },

@@ -72,7 +72,7 @@ export function WhiteboardPage({ slug }: WhiteboardPageProps) {
   const [architectureImprovementsOpen, setArchitectureImprovementsOpen] =
     useState(false);
   const [layoutMode, setLayoutMode] =
-    useState<ArchitectureLayoutMode>("high-level");
+    useState<ArchitectureLayoutMode>("workflow");
 
   // References
   const excalidrawAPIRef = useRef<ExcalidrawImperativeAPI | null>(null);
@@ -107,24 +107,30 @@ export function WhiteboardPage({ slug }: WhiteboardPageProps) {
         return;
       }
       try {
-        // Fetch current user details
-        try {
-          const userRes = await axios.get(`${BACKEND_URL}/user`, {
+        // Fetch current user details & room board data concurrently
+        const [userResResult, boardResResult] = await Promise.allSettled([
+          axios.get(`${BACKEND_URL}/user`, {
             headers: { Authorization: `Bearer ${token}` },
-          });
-          if (userRes.data?.name) {
-            usernameRef.current = userRes.data.name;
-          }
-        } catch {
-          // Ignore error, fallback to Collaborator
+            timeout: 5000,
+          }),
+          axios.get(`${BACKEND_URL}/room/${slug}`, {
+            headers: { Authorization: `Bearer ${token}` },
+            timeout: 20000,
+          }),
+        ]);
+
+        if (
+          userResResult.status === "fulfilled" &&
+          userResResult.value.data?.name
+        ) {
+          usernameRef.current = userResResult.value.data.name;
         }
 
-        // Fetch board data
-        const res = await axios.get(`${BACKEND_URL}/room/${slug}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        if (boardResResult.status === "rejected") {
+          throw boardResResult.reason;
+        }
 
-        const data = res.data;
+        const data = boardResResult.value.data;
         setBoardData(data);
 
         // Initialize saved state fingerprint

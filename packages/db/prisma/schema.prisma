@@ -36,6 +36,9 @@ model Room {
   chats     Chat[]
   architectureGraphs ArchitectureGraph[]
   analysisJobs AnalysisJob[]
+
+  @@index([adminId, updatedAt])
+  @@index([updatedAt])
 }
 
 model GithubConnection {
@@ -109,6 +112,7 @@ model BoardMember {
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([roomId, userId])
+  @@index([userId])
 }
 
 model FileAsset {

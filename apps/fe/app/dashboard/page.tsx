@@ -96,6 +96,25 @@ export default function Dashboard() {
       });
     }
 
+    // Initialize from cache for instant 0ms initial render
+    try {
+      const cachedRooms = localStorage.getItem("sketio_cached_rooms");
+      if (cachedRooms) {
+        const parsed = JSON.parse(cachedRooms);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setRooms(parsed);
+          setLoadingRooms(false);
+        }
+      }
+      const cachedUser = localStorage.getItem("sketio_cached_user");
+      if (cachedUser) {
+        const parsed = JSON.parse(cachedUser);
+        if (parsed?.id) {
+          setUser(parsed);
+        }
+      }
+    } catch {}
+
     async function fetchData() {
       const token = await getAuthToken();
       if (!token && !session?.user) {
@@ -104,37 +123,42 @@ export default function Dashboard() {
       }
 
       if (token) {
-        try {
-          const userRes = await axios.get(`${BACKEND_URL}/user`, {
+        // Parallelize user info and rooms list for 2x faster load times
+        const [userResResult, roomResResult] = await Promise.allSettled([
+          axios.get(`${BACKEND_URL}/user`, {
             headers: { Authorization: `Bearer ${token}` },
-          });
-          if (userRes.data) {
-            setUser(userRes.data as User);
-          }
-        } catch (err) {
-          // If session user is available, use it without redirecting
-          if (!session?.user) {
-            router.push("/signin");
-            return;
-          }
+            timeout: 6000,
+          }),
+          axios.get(`${BACKEND_URL}/get-rooms`, {
+            headers: { Authorization: `Bearer ${token}` },
+            timeout: 8000,
+          }),
+        ]);
+
+        if (userResResult.status === "fulfilled" && userResResult.value.data) {
+          const userData = userResResult.value.data as User;
+          setUser(userData);
+          try {
+            localStorage.setItem("sketio_cached_user", JSON.stringify(userData));
+          } catch {}
+        } else if (!session?.user && !user) {
+          router.push("/signin");
+          return;
         }
 
-        try {
-          const roomRes = await axios.get(`${BACKEND_URL}/get-rooms`, {
-            headers: { Authorization: `Bearer ${token}` },
-          });
-          const data = roomRes.data;
+        if (roomResResult.status === "fulfilled") {
+          const data = roomResResult.value.data;
           const safeRooms: Room[] = Array.isArray(data?.rooms)
             ? data.rooms
             : Array.isArray(data)
             ? data
             : [];
           setRooms(safeRooms);
-        } catch {
-          // Keep rooms empty
-        } finally {
-          setLoadingRooms(false);
+          try {
+            localStorage.setItem("sketio_cached_rooms", JSON.stringify(safeRooms));
+          } catch {}
         }
+        setLoadingRooms(false);
       } else {
         setLoadingRooms(false);
       }

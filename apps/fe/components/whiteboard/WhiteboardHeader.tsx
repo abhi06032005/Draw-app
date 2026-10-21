@@ -376,7 +376,7 @@ export function WhiteboardHeader({
         {onChangeLayoutMode && (
           <div className="flex items-center gap-1.5 ml-1">
             <select
-              value={currentLayoutMode || "high-level"}
+              value={currentLayoutMode || "workflow"}
               onChange={(e) => onChangeLayoutMode(e.target.value as any)}
               className={`rounded-lg border px-2 py-1 text-xs font-semibold outline-none transition cursor-pointer ${
                 isDark
@@ -385,6 +385,7 @@ export function WhiteboardHeader({
               }`}
               title="Switch Architecture Layout Mode"
             >
+              <option value="workflow">Workflow Flow (Agentic)</option>
               <option value="high-level">Tiered Architecture</option>
               <option value="dependency">Dependency Graph</option>
               <option value="backend">Backend Focus</option>

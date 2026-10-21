@@ -109,34 +109,61 @@ export async function analyzeRepository(
   let bytes = 0;
   let skipped = Math.max(0, entries.length - considered.length);
 
-  for (const entry of selected) {
-    if (bytes + (entry.size || 0) > limits.bytes) {
-      skipped += 1;
-      continue;
-    }
-    try {
-      const content = await client.getBlob(
-        parsed.owner,
-        parsed.repo,
-        entry.sha,
-      );
-      if (Buffer.byteLength(content, "utf8") > limits.bytes - bytes) {
+  // Parallel batch fetching with concurrency pool (avoids 100 serial HTTP roundtrips)
+  const CONCURRENCY = 8;
+  const queue = [...selected];
+
+  const { owner, repo } = parsed;
+  async function fetchWorker() {
+    while (queue.length > 0) {
+      const entry = queue.shift();
+      if (!entry) break;
+
+      if (bytes + (entry.size || 0) > limits.bytes) {
         skipped += 1;
         continue;
       }
-      bytes += Buffer.byteLength(content, "utf8");
-      sourceFiles.push({
-        path: entry.path,
-        content,
-        githubUrl: `https://github.com/${parsed.owner}/${parsed.repo}/blob/${encodeURIComponent(commitSha)}/${entry.path}`,
-      });
-    } catch {
-      skipped += 1;
-      warnings.push(
-        `Could not read ${entry.path}; it was omitted from analysis.`,
-      );
+
+      try {
+        let content: string;
+        // If client supports getFileContent (CDN raw support), use it to avoid consuming 60 req/hr API limit!
+        if (typeof (client as any).getFileContent === "function") {
+          content = await (client as any).getFileContent(
+            owner,
+            repo,
+            entry,
+            commitSha || revision,
+          );
+        } else {
+          content = await client.getBlob(owner, repo, entry.sha);
+        }
+
+        if (Buffer.byteLength(content, "utf8") > limits.bytes - bytes) {
+          skipped += 1;
+          continue;
+        }
+
+        bytes += Buffer.byteLength(content, "utf8");
+        sourceFiles.push({
+          path: entry.path,
+          content,
+          githubUrl: `https://github.com/${owner}/${repo}/blob/${encodeURIComponent(commitSha)}/${entry.path}`,
+        });
+      } catch {
+        skipped += 1;
+        warnings.push(
+          `Could not read ${entry.path}; it was omitted from analysis.`,
+        );
+      }
     }
   }
+
+  await Promise.all(
+    Array.from(
+      { length: Math.min(CONCURRENCY, selected.length) },
+      () => fetchWorker(),
+    ),
+  );
 
   await input.onStage?.("structure");
   const metadata = {
@@ -235,13 +262,13 @@ function buildGraph(
 
   for (const file of sourceFiles) {
     const classification = classifyFile(file.path, file.content);
-    const ownerKey = topLevelOwner(file.path);
+    const cluster = detectArchitectureCluster(file.path, file.content);
     const owner = addNode({
-      id: `area:${ownerKey}`,
-      name: ownerKey === "." ? "Application root" : ownerKey,
-      type: classification.type,
-      description: classification.description,
-      technology: classification.technology,
+      id: cluster.id,
+      name: cluster.name,
+      type: cluster.type,
+      description: cluster.description,
+      technology: cluster.technology,
       files: [file.path],
       evidence: [
         evidence(
@@ -249,16 +276,16 @@ function buildGraph(
           "Detected from repository structure and source contents.",
         ),
       ],
-      confidence: classification.confidence,
-      inferred: classification.inferred,
+      confidence: cluster.type === "shared" ? 0.82 : 0.96,
+      inferred: false,
     });
     addEdge(
       edges,
       root.id,
       owner.id,
       "contains",
-      "contains",
-      [evidence(file, "File belongs to this repository area.")],
+      "contains module",
+      [evidence(file, "Module belongs to this repository.")],
       1,
       false,
     );
@@ -305,17 +332,17 @@ function buildGraph(
   for (const file of sourceFiles.filter((item) =>
     SOURCE_PATTERN.test(item.path),
   )) {
-    const current =
-      fileNodeByPath.get(file.path) ||
-      nodeByKey.get(`area:${topLevelOwner(file.path)}`);
+    const currentCluster = detectArchitectureCluster(file.path, file.content);
+    const currentOwner = nodeByKey.get(currentCluster.id);
+    const current = fileNodeByPath.get(file.path) || currentOwner;
     if (!current) continue;
     const imports = extractImports(file);
     for (const imported of imports) {
       const targetPath = resolveLocalImport(file.path, imported, sourceFiles);
       if (targetPath) {
-        const target =
-          fileNodeByPath.get(targetPath) ||
-          nodeByKey.get(`area:${topLevelOwner(targetPath)}`);
+        const targetCluster = detectArchitectureCluster(targetPath, "");
+        const targetOwner = nodeByKey.get(targetCluster.id);
+        const target = fileNodeByPath.get(targetPath) || targetOwner;
         if (target && target.id !== current.id) {
           addEdge(
             edges,
@@ -325,6 +352,22 @@ function buildGraph(
             "imports",
             [importEvidence(file, imported)],
             1,
+            false,
+          );
+        }
+        if (
+          currentOwner &&
+          targetOwner &&
+          currentOwner.id !== targetOwner.id
+        ) {
+          addEdge(
+            edges,
+            currentOwner.id,
+            targetOwner.id,
+            "depends-on",
+            "imports / calls",
+            [importEvidence(file, imported)],
+            0.92,
             false,
           );
         }
@@ -358,6 +401,7 @@ function buildGraph(
     }
   }
 
+  detectCrossModuleInteractions(nodes, edges, sourceFiles, addEdge);
   addDetectedInfrastructure(nodes, edges, sourceFiles, addNode);
   return {
     version: 1,
@@ -571,7 +615,198 @@ function normalizePath(path: string): string {
 }
 
 function topLevelOwner(path: string): string {
-  return path.includes("/") ? path.split("/")[0] || "." : ".";
+  const norm = path.replace(/\\/g, "/");
+  const parts = norm.split("/").filter(Boolean);
+  if (
+    parts.length >= 2 &&
+    /^(apps|packages|services|modules)$/i.test(parts[0] || "")
+  ) {
+    return `${parts[0]}/${parts[1]}`;
+  }
+  for (const part of parts.slice(0, -1)) {
+    const p = part.toLowerCase();
+    if (/routes|controllers|api|endpoints/i.test(p)) return "api";
+    if (/models|entities|db|database|prisma|schemas/i.test(p)) return "database";
+    if (/services|domain|business/i.test(p)) return "services";
+    if (/middleware|auth|security|guards/i.test(p)) return "auth";
+    if (/realtime|sockets|ws/i.test(p)) return "realtime";
+    if (/workers|queues|tasks|jobs/i.test(p)) return "workers";
+    if (/components|views|pages|app|ui/i.test(p)) return "frontend";
+  }
+  return parts.length > 1 ? parts[0] || "." : ".";
+}
+
+function capitalize(str: string): string {
+  if (!str) return "";
+  return str.charAt(0).toUpperCase() + str.slice(1);
+}
+
+function detectArchitectureCluster(
+  filePath: string,
+  content: string,
+): {
+  id: string;
+  name: string;
+  type: ArchitectureNodeType;
+  description: string;
+  technology?: string;
+} {
+  const norm = filePath.replace(/\\/g, "/");
+  const parts = norm.split("/").filter(Boolean);
+
+  // 1. Monorepo detection: apps/* or packages/* or services/* or modules/*
+  if (
+    parts.length >= 2 &&
+    /^(apps|packages|services|modules)$/i.test(parts[0] || "")
+  ) {
+    const scope = parts[0]!.toLowerCase();
+    const sub = parts[1]!.toLowerCase();
+    const moduleId = `${scope}/${sub}`;
+
+    if (/fe|frontend|client|web|ui/i.test(sub)) {
+      return {
+        id: `area:${moduleId}`,
+        name: `${capitalize(sub)} (Web Client)`,
+        type: "frontend",
+        description: "Interactive web frontend application",
+        technology: /react|next/i.test(content)
+          ? "Next.js / React"
+          : "Web Frontend",
+      };
+    }
+    if (/http|api|server|backend/i.test(sub)) {
+      return {
+        id: `area:${moduleId}`,
+        name: `${capitalize(sub)} (API Service)`,
+        type: "api",
+        description: "REST API service & endpoint handler",
+        technology: /express/i.test(content) ? "Express.js" : "Node.js API",
+      };
+    }
+    if (/ws|socket|realtime/i.test(sub)) {
+      return {
+        id: `area:${moduleId}`,
+        name: `${capitalize(sub)} (Realtime Hub)`,
+        type: "realtime",
+        description: "WebSocket server & live collaboration hub",
+        technology: /socket\.io/i.test(content) ? "Socket.IO" : "WebSocket",
+      };
+    }
+    if (/db|database|prisma|persistence/i.test(sub)) {
+      return {
+        id: `area:${moduleId}`,
+        name: `${capitalize(sub)} (Database Layer)`,
+        type: "database",
+        description: "Database client, schemas, and persistence models",
+        technology: /prisma/i.test(content)
+          ? "Prisma / PostgreSQL"
+          : "Database Layer",
+      };
+    }
+    if (/common|shared|types|contracts/i.test(sub)) {
+      return {
+        id: `area:${moduleId}`,
+        name: `${capitalize(sub)} (Shared Core)`,
+        type: "shared",
+        description: "Shared data contracts, schemas, and validation logic",
+        technology: "TypeScript Shared Library",
+      };
+    }
+    const classification = classifyFile(filePath, content);
+    return {
+      id: `area:${moduleId}`,
+      name: `${capitalize(sub)} (${capitalize(scope)})`,
+      type: classification.type,
+      description: `${capitalize(scope)} workspace package: ${sub}`,
+      technology: classification.technology,
+    };
+  }
+
+  // 2. Layer-based subsystems for standard projects:
+  for (const part of parts.slice(0, -1)) {
+    const p = part.toLowerCase();
+    if (/routes|controllers|api|endpoints/i.test(p)) {
+      return {
+        id: "area:api",
+        name: "API Gateway & Routing",
+        type: "api",
+        description: "HTTP endpoints, route handlers, and controllers",
+        technology: norm.endsWith(".py")
+          ? "FastAPI / Flask Routes"
+          : "API Routes",
+      };
+    }
+    if (/models|entities|db|database|prisma|schemas/i.test(p)) {
+      return {
+        id: "area:database",
+        name: "Persistence & Data Models",
+        type: "database",
+        description: "Database models, schemas, and queries",
+        technology: norm.endsWith(".py")
+          ? "Python ORM / SQL"
+          : "Prisma / SQL Models",
+      };
+    }
+    if (/services|domain|business/i.test(p)) {
+      return {
+        id: "area:services",
+        name: "Core Business Services",
+        type: "service",
+        description: "Domain logic, business services, and processing",
+        technology: "Application Services",
+      };
+    }
+    if (/middleware|auth|security|guards/i.test(p)) {
+      return {
+        id: "area:auth",
+        name: "Auth & Security Middleware",
+        type: "auth",
+        description: "Authentication, token verification, and security rules",
+        technology: "Auth & Security",
+      };
+    }
+    if (/realtime|sockets|ws/i.test(p)) {
+      return {
+        id: "area:realtime",
+        name: "Realtime Gateway",
+        type: "realtime",
+        description: "Real-time communication and event dispatching",
+        technology: "Realtime WebSocket",
+      };
+    }
+    if (/workers|queues|tasks|jobs/i.test(p)) {
+      return {
+        id: "area:workers",
+        name: "Background Workers & Queues",
+        type: "worker",
+        description: "Asynchronous task execution and scheduled jobs",
+        technology: norm.endsWith(".py") ? "Celery Worker" : "Job Queue",
+      };
+    }
+    if (/components|views|pages|app|ui/i.test(p)) {
+      return {
+        id: "area:frontend",
+        name: "Frontend UI & Pages",
+        type: "frontend",
+        description: "Client pages, layouts, and user interface components",
+        technology: "React / Frontend",
+      };
+    }
+  }
+
+  // 3. Fallback based on file classification:
+  const classification = classifyFile(filePath, content);
+  const top = topLevelOwner(filePath);
+  return {
+    id: `area:${top}`,
+    name:
+      top === "."
+        ? "Application Root"
+        : `${capitalize(top.replace(/[/_-]/g, " "))} Module`,
+    type: classification.type,
+    description: classification.description,
+    technology: classification.technology,
+  };
 }
 
 function safeSnippet(
@@ -762,6 +997,153 @@ function addEdge(
     confidence,
     inferred,
   });
+}
+
+function detectCrossModuleInteractions(
+  nodes: ArchitectureNode[],
+  edges: ArchitectureEdge[],
+  files: SourceFile[],
+  addEdgeFn: typeof addEdge,
+): void {
+  const feNode = nodes.find(
+    (n) => n.type === "frontend" && !n.id.startsWith("file:"),
+  );
+  const apiNode = nodes.find(
+    (n) => n.type === "api" && !n.id.startsWith("file:"),
+  );
+  const dbNode = nodes.find(
+    (n) => n.type === "database" && !n.id.startsWith("file:"),
+  );
+  const rtNode = nodes.find(
+    (n) => n.type === "realtime" && !n.id.startsWith("file:"),
+  );
+  const authNode = nodes.find(
+    (n) => n.type === "auth" && !n.id.startsWith("file:"),
+  );
+  const sharedNode = nodes.find(
+    (n) => n.type === "shared" && !n.id.startsWith("file:"),
+  );
+
+  for (const file of files) {
+    const content = file.content;
+
+    // Frontend -> API HTTP calls
+    if (feNode && apiNode && feNode.files.includes(file.path)) {
+      if (/axios|fetch\(|BACKEND_URL|\/api\/|useSWR|useQuery/i.test(content)) {
+        addEdgeFn(
+          edges,
+          feNode.id,
+          apiNode.id,
+          "connects",
+          "HTTP REST API",
+          [evidence(file, "Frontend client calls backend HTTP endpoints.")],
+          0.96,
+          false,
+        );
+      }
+      if (
+        rtNode &&
+        /socket\.io|WebSocket|io\(|WS_URL|realtime/i.test(content)
+      ) {
+        addEdgeFn(
+          edges,
+          feNode.id,
+          rtNode.id,
+          "connects",
+          "WebSocket Stream",
+          [
+            evidence(
+              file,
+              "Frontend client establishes realtime socket connection.",
+            ),
+          ],
+          0.96,
+          false,
+        );
+      }
+    }
+
+    // API -> Database persistence & Auth
+    if (apiNode && dbNode && apiNode.files.includes(file.path)) {
+      if (
+        /prisma|prismaClient|new Pool|db\.|execute\(|declarative_base|Base\s*=|sqlalchemy/i.test(
+          content,
+        )
+      ) {
+        addEdgeFn(
+          edges,
+          apiNode.id,
+          dbNode.id,
+          "persists",
+          "ORM Queries & Writes",
+          [evidence(file, "API service reads/writes from database models.")],
+          0.98,
+          false,
+        );
+      }
+      if (
+        authNode &&
+        /jwt|bcrypt|password|token|authorize|authenticate/i.test(content)
+      ) {
+        addEdgeFn(
+          edges,
+          apiNode.id,
+          authNode.id,
+          "depends-on",
+          "Token & Auth Guard",
+          [evidence(file, "API verifies tokens and enforces auth rules.")],
+          0.92,
+          false,
+        );
+      }
+    }
+
+    // Realtime -> DB sync
+    if (rtNode && dbNode && rtNode.files.includes(file.path)) {
+      if (/prisma|db\.|save|update|insert/i.test(content)) {
+        addEdgeFn(
+          edges,
+          rtNode.id,
+          dbNode.id,
+          "persists",
+          "Syncs State",
+          [
+            evidence(
+              file,
+              "Realtime hub synchronizes state to persistence layer.",
+            ),
+          ],
+          0.95,
+          false,
+        );
+      }
+    }
+
+    // Services -> Shared
+    if (
+      sharedNode &&
+      (apiNode?.files.includes(file.path) || feNode?.files.includes(file.path))
+    ) {
+      const sourceModule = apiNode?.files.includes(file.path)
+        ? apiNode
+        : feNode;
+      if (
+        sourceModule &&
+        /@repo\/common|packages\/common|from ["'].*common["']/i.test(content)
+      ) {
+        addEdgeFn(
+          edges,
+          sourceModule.id,
+          sharedNode.id,
+          "depends-on",
+          "Shared Schemas & Types",
+          [evidence(file, "Imports shared schemas and contracts.")],
+          0.9,
+          false,
+        );
+      }
+    }
+  }
 }
 
 function addDetectedInfrastructure(

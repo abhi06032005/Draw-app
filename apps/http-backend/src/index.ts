@@ -215,49 +215,76 @@ app.get("/get-rooms", middleware, async function (req, res) {
     return res.status(401).json({ message: "Unauthorized" });
   }
 
-  try {
-    const rooms = await prismaClient.room.findMany({
-      where: {
-        OR: [{ adminId: userId }, { members: { some: { userId: userId } } }],
-      },
+  const roomSelect = {
+    id: true,
+    slug: true,
+    title: true,
+    createAt: true,
+    updatedAt: true,
+    adminId: true,
+    admin: {
       select: {
         id: true,
-        slug: true,
-        title: true,
-        createAt: true,
-        updatedAt: true,
-        adminId: true,
-        admin: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
+        name: true,
+        email: true,
+      },
+    },
+  };
+
+  try {
+    // Ultra-fast index-driven queries in parallel:
+    // 1. Owned rooms (uses Room_adminId_updatedAt_idx)
+    // 2. Member rooms (uses BoardMember_userId_idx)
+    const [ownedRooms, memberRecords] = await Promise.all([
+      prismaClient.room.findMany({
+        where: { adminId: userId },
+        select: roomSelect,
+        orderBy: { updatedAt: "desc" },
+        take: 100,
+      }),
+      prismaClient.boardMember.findMany({
+        where: { userId: userId },
+        select: {
+          room: {
+            select: roomSelect,
           },
         },
-      },
-      orderBy: {
-        updatedAt: "desc",
-      },
-    });
+        take: 100,
+      }),
+    ]);
 
-    return res.json(rooms);
+    // Merge & deduplicate by room id in memory
+    const roomMap = new Map<number, any>();
+    for (const r of ownedRooms) {
+      if (r) roomMap.set(r.id, r);
+    }
+    for (const m of memberRecords) {
+      if (m?.room && !roomMap.has(m.room.id)) {
+        roomMap.set(m.room.id, m.room);
+      }
+    }
+
+    const sortedRooms = Array.from(roomMap.values()).sort(
+      (a, b) => new Date(b.updatedAt || b.createAt).getTime() - new Date(a.updatedAt || a.createAt).getTime(),
+    );
+
+    res.setHeader("Cache-Control", "private, no-cache, no-transform");
+    return res.json(sortedRooms);
   } catch (err) {
     console.warn(
-      "Primary get-rooms query failed, attempting legacy fallback:",
+      "Primary parallel get-rooms query failed, attempting standard fallback:",
       err,
     );
     try {
       const fallbackRooms = await prismaClient.room.findMany({
-        where: { adminId: userId },
-        select: {
-          id: true,
-          slug: true,
-          createAt: true,
-          adminId: true,
+        where: {
+          OR: [{ adminId: userId }, { members: { some: { userId: userId } } }],
         },
+        select: roomSelect,
         orderBy: {
-          createAt: "desc",
+          updatedAt: "desc",
         },
+        take: 100,
       });
       return res.json(fallbackRooms);
     } catch (fallbackErr) {
@@ -521,22 +548,21 @@ app.get("/room/:slug", async function (req, res) {
           role = member.role;
         } else {
           role = "EDITOR"; // Default authenticated users to editor for seamless collaboration
-          try {
-            await prismaClient.boardMember.upsert({
-              where: {
-                roomId_userId: {
-                  roomId: room.id,
-                  userId: userId,
-                },
-              },
-              create: {
+          // Add user as editor in background without blocking room delivery
+          prismaClient.boardMember.upsert({
+            where: {
+              roomId_userId: {
                 roomId: room.id,
                 userId: userId,
-                role: "EDITOR",
               },
-              update: {},
-            });
-          } catch {}
+            },
+            create: {
+              roomId: room.id,
+              userId: userId,
+              role: "EDITOR",
+            },
+            update: {},
+          }).catch(() => {});
         }
       }
     }
